@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinelle-postgres
+    environment:
+      POSTGRES_USER: sentinelle
+      POSTGRES_PASSWORD: sentinelle_password
+      POSTGRES_DB: sentinelle_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sentinelle-network
+
+  # Redis pour cache et queue
+  redis:
+    image: redis:7-alpine
+    container_name: sentinelle-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sentinelle-network
+
+  # MinIO pour storage (alternative S3)
+  minio:
+    image: minio/minio:latest
+    container_name: sentinelle-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: sentinelle
+      MINIO_ROOT_PASSWORD: sentinelle_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - sentinelle-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  sentinelle-network:
+    driver: bridge

@@ -1,0 +1,36 @@
+{
+  "name": "sentinelle-reputation",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "./infrastructure/scripts/dev.sh",
+    "build": "./infrastructure/scripts/build.sh",
+    "deploy": "./infrastructure/scripts/deploy.sh",
+    
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "dev:landing": "npm run dev --workspace=apps/landing",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    
+    "build:web": "npm run build --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:landing": "npm run build --workspace=apps/landing",
+    "build:admin": "npm run build --workspace=apps/admin",
+    
+    "db:migrate": "npm run migrate --workspace=apps/api",
+    "db:studio": "npm run studio --workspace=apps/api",
+    "db:seed": "npm run seed --workspace=apps/api",
+    
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "sentinelle-workers",
+  "version": "1.0.0",
+  "description": "Background jobs for Sentinelle Reputation",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "nodemon --watch src --exec ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bull": "^4.12.0",
+    "date-fns": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "ioredis": "^5.3.2",
+    "lodash": "^4.17.21",
+    "nodemailer": "^7.0.11",
+    "puppeteer": "^24.34.0",
+    "twilio": "^4.19.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@types/bull": "^4.10.0",
+    "@types/lodash": "^4.14.202",
+    "@types/node": "^20.10.0",
+    "@types/nodemailer": "^6.4.14",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0"
+  }
+}
