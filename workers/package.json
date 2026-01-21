@@ -1,0 +1,32 @@
+{
+  "name": "workers",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "postinstall": "echo 'Skipping Chromium download'"
+  },
+  "dependencies": {
+    "@bull-board/api": "^6.16.2",
+    "@bull-board/express": "^6.16.2",
+    "@sentinelle/database": "*",
+    "@types/express": "^5.0.6",
+    "axios": "^1.7.9",
+    "bull": "^4.16.3",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "ioredis": "^5.4.1",
+    "puppeteer-core": "^23.11.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "config": {
+    "puppeteer_skip_chromium_download": "true"
+  }
+}

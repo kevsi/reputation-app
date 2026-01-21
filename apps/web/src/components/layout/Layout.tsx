@@ -20,7 +20,7 @@ export default function Layout() {
       {/* Overlay mobile sidebar gauche */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -28,16 +28,16 @@ export default function Layout() {
       {/* Overlay mobile sidebar droite */}
       {rightSidebarOpen && !shouldHideRightSidebar && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 xl:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setRightSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar gauche */}
       <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 
+        fixed md:static inset-y-0 left-0 z-50 
         transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <Sidebar 
           isCollapsed={sidebarCollapsed}
@@ -52,7 +52,7 @@ export default function Layout() {
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           onRightSidebarClick={() => {
             if (!shouldHideRightSidebar) {
-              if (window.innerWidth >= 1280) {
+              if (window.innerWidth >= 1024) {
                 setRightSidebarCollapsed(!rightSidebarCollapsed);
               } else {
                 setRightSidebarOpen(!rightSidebarOpen);
@@ -70,9 +70,9 @@ export default function Layout() {
       {/* Sidebar droite - Masquée sur certaines pages */}
       {!shouldHideRightSidebar && !rightSidebarCollapsed && (
         <div className={`
-          fixed xl:static inset-y-0 right-0 z-50
+          fixed lg:static inset-y-0 right-0 z-50
           transform transition-transform duration-300 ease-in-out
-          ${rightSidebarOpen ? 'translate-x-0' : 'translate-x-full xl:translate-x-0'}
+          ${rightSidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
         `}>
           <RightSidebar 
             isCollapsed={rightSidebarCollapsed}

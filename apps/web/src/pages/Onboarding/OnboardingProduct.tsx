@@ -1,16 +1,16 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Briefcase, 
-  Palette, 
-  DollarSign, 
-  Timer, 
-  Code, 
+import {
+  Briefcase,
+  Palette,
+  DollarSign,
+  Timer,
+  Code,
   Brain
 } from "lucide-react";
 import { OnboardingLayout } from "@/components/onboarding/OnboardingLayout";
 import { ProductCard } from "@/components/onboarding/ProductCard";
 import { NavigationButtons } from "@/components/onboarding/NavigationButtons";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 const products = [
   {
@@ -53,7 +53,7 @@ const products = [
 
 export default function OnboardingProduct() {
   const navigate = useNavigate();
-  const [selectedProduct, setSelectedProduct] = useState<string>("productivity");
+  const { data, updateData } = useOnboarding();
 
   return (
     <OnboardingLayout currentStep={1} totalSteps={5}>
@@ -69,8 +69,8 @@ export default function OnboardingProduct() {
               icon={product.icon}
               title={product.title}
               description={product.description}
-              isSelected={selectedProduct === product.id}
-              onClick={() => setSelectedProduct(product.id)}
+              isSelected={data.product === product.id}
+              onClick={() => updateData({ product: product.id })}
             />
           ))}
         </div>
@@ -79,7 +79,7 @@ export default function OnboardingProduct() {
       <NavigationButtons
         showBack={false}
         onContinue={() => navigate("/onboarding/platforms")}
-        continueDisabled={!selectedProduct}
+        continueDisabled={!data.product}
       />
     </OnboardingLayout>
   );

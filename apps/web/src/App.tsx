@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import './global.css';
 
 import Layout from '@/components/layout/Layout';
@@ -35,41 +38,45 @@ import OnboardingComplete from '@/pages/Onboarding/OnboardingComplete';
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Routes d'authentification (avec AuthLayout) */}
-          <Route element={<AuthLayout />}>
-            <Route path="/signin" element={<SignInPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/two-factor" element={<TwoFactorAuth />} />
-          </Route>
+      <AuthProvider>
+        <OnboardingProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Routes d'authentification (avec AuthLayout) */}
+              <Route element={<AuthLayout />}>
+                <Route path="/signin" element={<SignInPage />} />
+                <Route path="/signup" element={<SignUpPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
+                <Route path="/two-factor" element={<TwoFactorAuth />} />
+              </Route>
 
-          {/* Routes d'onboarding (sans layout) */}
-          <Route path="/get-started" element={<Started />} />
-          <Route path="/onboarding/product" element={<OnboardingProduct />} />
-          <Route path="/onboarding/platforms" element={<OnboardingPlatforms />} />
-          <Route path="/onboarding/alerts" element={<OnboardingAlerts />} />
-          <Route path="/onboarding/invite" element={<OnboardingInvite />} />
-          <Route path="/onboarding/setup" element={<OnboardingSetup />} />
-          <Route path="/onboarding/complete" element={<OnboardingComplete />} />
-          
-          {/* Routes avec layout (sidebar + rightbar) */}
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="mentions" element={<Mentions />} />
-            <Route path="alerts" element={<Alerts />} />
-            <Route path="analysis" element={<Analysis />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="actions" element={<Actions />} />
-            <Route path="sources" element={<Sources />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="*" element={<div>404 Not Found</div>} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+              {/* Routes d'onboarding (protégées) */}
+              <Route path="/get-started" element={<ProtectedRoute><Started /></ProtectedRoute>} />
+              <Route path="/onboarding/product" element={<ProtectedRoute><OnboardingProduct /></ProtectedRoute>} />
+              <Route path="/onboarding/platforms" element={<ProtectedRoute><OnboardingPlatforms /></ProtectedRoute>} />
+              <Route path="/onboarding/alerts" element={<ProtectedRoute><OnboardingAlerts /></ProtectedRoute>} />
+              <Route path="/onboarding/invite" element={<ProtectedRoute><OnboardingInvite /></ProtectedRoute>} />
+              <Route path="/onboarding/setup" element={<ProtectedRoute><OnboardingSetup /></ProtectedRoute>} />
+              <Route path="/onboarding/complete" element={<ProtectedRoute><OnboardingComplete /></ProtectedRoute>} />
+
+              {/* Routes avec layout (sidebar + rightbar) (protégées) */}
+              <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route index element={<Dashboard />} />
+                <Route path="mentions" element={<Mentions />} />
+                <Route path="alerts" element={<Alerts />} />
+                <Route path="analysis" element={<Analysis />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="actions" element={<Actions />} />
+                <Route path="sources" element={<Sources />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="*" element={<div>404 Not Found</div>} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </OnboardingProvider>
+      </AuthProvider>
     </ThemeProvider>
   </StrictMode>
 );

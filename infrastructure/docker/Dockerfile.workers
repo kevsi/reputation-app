@@ -1,0 +1,78 @@
+# ---------------------------------------------
+# Dockerfile pour sentinelle-workers (monorepo)
+# ---------------------------------------------
+
+FROM node:20-alpine AS base
+RUN apk add --no-cache openssl libc6-compat
+
+# Stage 1: Install dependencies
+FROM base AS deps
+WORKDIR /app
+
+# Installer Chromium pour Puppeteer
+RUN apk add --no-cache chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Copier les package.json de tous les packages du workspace
+COPY package*.json ./
+COPY turbo.json* ./
+COPY workers/package*.json ./workers/
+COPY database/package*.json ./database/
+COPY shared/package*.json ./shared/
+COPY apps/*/package*.json ./apps/
+
+# Config npm
+RUN npm config set fetch-timeout 600000 && npm config set fetch-retries 5
+
+# Installer toutes les dépendances
+RUN npm install
+
+# Stage 2: Build
+FROM base AS builder
+WORKDIR /app
+
+# Copier node_modules depuis deps
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copier le code source
+COPY workers/ ./workers/
+COPY database/ ./database/
+COPY shared/ ./shared/
+COPY apps/ ./apps/
+COPY package*.json ./
+COPY turbo.json* ./
+
+# Générer Prisma client
+WORKDIR /app/database
+RUN npx prisma generate
+
+# Compiler TypeScript pour les workers
+WORKDIR /app/workers
+RUN npm run build
+
+# Stage 3: Production
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV NODE_PATH=/app/node_modules
+
+# Installer Chromium et créer utilisateur non-root
+RUN apk add --no-cache chromium && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 worker
+
+# Copier node_modules et code buildé
+COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=worker:nodejs /app/workers/dist ./workers/dist
+COPY --from=builder --chown=worker:nodejs /app/workers/package*.json ./workers/
+COPY --from=builder --chown=worker:nodejs /app/database ./database
+COPY --from=builder --chown=worker:nodejs /app/shared ./shared
+COPY --from=builder --chown=worker:nodejs /app/package*.json ./
+
+USER worker
+
+# Lancer depuis la racine pour que les workspace soient bien résolus
+WORKDIR /app
+CMD ["node", "workers/dist/index.js"]

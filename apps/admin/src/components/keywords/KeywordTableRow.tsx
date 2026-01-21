@@ -1,106 +1,82 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Trash2, Edit2, PlayCircle } from "lucide-react";
+
 interface KeywordTableRowProps {
-  keyword: string;
-  type: "mention" | "hashtag" | "regex" | "exclusion";
-  priority: "urgent" | "high" | "medium" | "low";
-  organisations: number;
-  isActive: boolean;
-  onToggle: () => void;
-  onModify: () => void;
-  onTest: () => void;
+  id: string;
+  word: string;
+  category?: string;
+  brandName?: string;
+  priority: number;
+  onDelete: () => void;
 }
 
 export function KeywordTableRow({
-  keyword,
-  type,
+  word,
+  category,
+  brandName,
   priority,
-  organisations,
-  isActive,
-  onToggle,
-  onModify,
-  onTest
+  onDelete
 }: KeywordTableRowProps) {
-  const getTypeLabel = () => {
-    switch (type) {
-      case "mention":
-        return "mention";
-      case "hashtag":
-        return "hashtag";
-      case "regex":
-        return "regex";
-      case "exclusion":
-        return "exclusion";
-      default:
-        return type;
-    }
+  const getPriorityLabel = () => {
+    if (priority >= 3) return "Haute";
+    if (priority >= 2) return "Moyenne";
+    return "Basse";
   };
 
   const getPriorityStyle = () => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-100 text-red-700";
-      case "high":
-        return "bg-orange-100 text-orange-700";
-      case "medium":
-        return "bg-blue-100 text-blue-700";
-      case "low":
-        return "bg-gray-100 text-gray-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
+    if (priority >= 3) return "bg-red-100 text-red-700 hover:bg-red-100 border-none";
+    if (priority >= 2) return "bg-blue-100 text-blue-700 hover:bg-blue-100 border-none";
+    return "bg-slate-100 text-slate-700 hover:bg-slate-100 border-none";
   };
 
   return (
-    <tr className="border-b border-border hover:bg-muted/50 transition-colors">
+    <tr className="group hover:bg-muted/30 transition-colors">
       {/* Mot-clé / Règle */}
-      <td className="px-4 py-4">
-        <span className="text-sm font-mono text-foreground">{keyword}</span>
-      </td>
-
-      {/* Type */}
-      <td className="px-4 py-4">
-        <span className="text-sm text-muted-foreground">{getTypeLabel()}</span>
-      </td>
-
-      {/* Priorité */}
-      <td className="px-4 py-4">
-        <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getPriorityStyle()}`}>
-          {priority}
+      <td className="px-6 py-4">
+        <span className="text-sm font-bold text-foreground font-mono bg-muted/50 px-2 py-1 rounded">
+          {word}
         </span>
       </td>
 
-      {/* Organisations */}
-      <td className="px-4 py-4">
-        <span className="text-sm text-foreground">{organisations}</span>
+      {/* Catégorie */}
+      <td className="px-6 py-4">
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-tight">
+          {category || 'Général'}
+        </span>
       </td>
 
-      {/* Statut (Toggle) */}
-      <td className="px-4 py-4">
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={onToggle}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-        </label>
+      {/* Marque */}
+      <td className="px-6 py-4">
+        <Badge variant="outline" className="font-bold text-[10px] bg-muted/20">
+          {brandName || 'N/A'}
+        </Badge>
+      </td>
+
+      {/* Priorité */}
+      <td className="px-6 py-4">
+        <Badge className={`font-bold text-[10px] uppercase tracking-wider ${getPriorityStyle()}`}>
+          {getPriorityLabel()}
+        </Badge>
       </td>
 
       {/* Actions */}
-      <td className="px-4 py-4">
-        <div className="flex gap-2">
-          <button
-            onClick={onModify}
-            className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors text-foreground"
+      <td className="px-6 py-4 text-right">
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-40 group-hover:opacity-100 transition-opacity">
+            <PlayCircle className="w-4 h-4 text-green-600" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-40 group-hover:opacity-100 transition-opacity">
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            className="h-8 w-8 opacity-40 group-hover:opacity-100 transition-opacity text-destructive"
           >
-            Modifier
-          </button>
-          <button
-            onClick={onTest}
-            className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors text-foreground"
-          >
-            Tester
-          </button>
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
       </td>
     </tr>

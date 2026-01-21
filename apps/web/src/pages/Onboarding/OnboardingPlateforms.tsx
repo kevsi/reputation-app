@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OnboardingLayout } from "@/components/onboarding/OnboardingLayout";
 import { ProductCard } from "@/components/onboarding/ProductCard";
 import { NavigationButtons } from "@/components/onboarding/NavigationButtons";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 const platforms = [
   {
@@ -45,19 +45,19 @@ const platforms = [
 
 export default function OnboardingPlatforms() {
   const navigate = useNavigate();
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["instagram", "facebook"]);
+  const { data, updateData } = useOnboarding();
 
   const togglePlatform = (platformId: string) => {
-    setSelectedPlatforms(prev => 
-      prev.includes(platformId)
-        ? prev.filter(id => id !== platformId)
-        : [...prev, platformId]
-    );
+    updateData({
+      platforms: data.platforms.includes(platformId)
+        ? data.platforms.filter(id => id !== platformId)
+        : [...data.platforms, platformId]
+    });
   };
 
   return (
-    <OnboardingLayout 
-      currentStep={2} 
+    <OnboardingLayout
+      currentStep={2}
       totalSteps={5}
       rightImage="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=1200"
     >
@@ -73,7 +73,7 @@ export default function OnboardingPlatforms() {
               iconImage={platform.iconImage}
               title={platform.title}
               description={platform.description}
-              isSelected={selectedPlatforms.includes(platform.id)}
+              isSelected={data.platforms.includes(platform.id)}
               onClick={() => togglePlatform(platform.id)}
             />
           ))}
@@ -83,7 +83,7 @@ export default function OnboardingPlatforms() {
       <NavigationButtons
         onBack={() => navigate("/onboarding/product")}
         onContinue={() => navigate("/onboarding/alerts")}
-        continueDisabled={selectedPlatforms.length === 0}
+        continueDisabled={data.platforms.length === 0}
       />
     </OnboardingLayout>
   );

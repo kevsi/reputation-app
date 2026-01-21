@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Timer } from "lucide-react";
 import { OnboardingLayout } from "@/components/onboarding/OnboardingLayout";
@@ -6,6 +5,7 @@ import { ProductCard } from "@/components/onboarding/ProductCard";
 import { NavigationButtons } from "@/components/onboarding/NavigationButtons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 const alertLevels = [
   {
@@ -36,15 +36,14 @@ const notificationMethods = [
 
 export default function OnboardingAlerts() {
   const navigate = useNavigate();
-  const [selectedLevel, setSelectedLevel] = useState<string>("medium");
-  const [selectedMethods, setSelectedMethods] = useState<string[]>(["email", "push"]);
+  const { data, updateData } = useOnboarding();
 
   const toggleMethod = (methodId: string) => {
-    setSelectedMethods(prev =>
-      prev.includes(methodId)
-        ? prev.filter(id => id !== methodId)
-        : [...prev, methodId]
-    );
+    updateData({
+      notificationMethods: data.notificationMethods.includes(methodId)
+        ? data.notificationMethods.filter(id => id !== methodId)
+        : [...data.notificationMethods, methodId]
+    });
   };
 
   return (
@@ -61,8 +60,8 @@ export default function OnboardingAlerts() {
               icon={level.icon}
               title={level.title}
               description={level.description}
-              isSelected={selectedLevel === level.id}
-              onClick={() => setSelectedLevel(level.id)}
+              isSelected={data.alertLevel === level.id}
+              onClick={() => updateData({ alertLevel: level.id })}
             />
           ))}
         </div>
@@ -75,11 +74,11 @@ export default function OnboardingAlerts() {
           {notificationMethods.map((method) => (
             <Button
               key={method.id}
-              variant={selectedMethods.includes(method.id) ? "default" : "outline"}
+              variant={data.notificationMethods.includes(method.id) ? "default" : "outline"}
               onClick={() => toggleMethod(method.id)}
               className={cn(
                 "rounded-full px-6",
-                selectedMethods.includes(method.id) && "shadow-md"
+                data.notificationMethods.includes(method.id) && "shadow-md"
               )}
             >
               {method.label}

@@ -1,0 +1,55 @@
+
+FROM python:3.11-slim as base
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Builder stage
+FROM base as builder
+
+COPY ai-service/requirements.txt .
+RUN pip install --user -r requirements.txt
+
+# Download SpaCy models
+RUN pip install --user https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.7.0/fr_core_news_sm-3.7.0-py3-none-any.whl \
+    && pip install --user https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl
+
+# Production stage
+FROM base as production
+
+# Create non-root user first
+RUN useradd -m -u 1000 appuser
+
+# Copy installed dependencies to appuser's home with correct ownership
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Copy code
+COPY --chown=appuser:appuser ai-service/src /app/src
+
+USER appuser
+
+# Pre-download Transformer models
+# We set PYTHONPATH to /app so it can find src module
+RUN PYTHONPATH=/app python -m src.utils.download_models
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start command
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

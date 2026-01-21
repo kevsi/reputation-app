@@ -1,140 +1,213 @@
-import { ConnectorCard } from "@/components/connectors/ConnectorCard";
-import { RefreshCw } from "lucide-react";
 
-const connectorsData = [
-  {
-    id: 1,
-    name: "X (Twitter)",
-    icon: "❌",
-    status: "Opérationnel" as const,
-    collected24h: 12450,
-    errors: 0,
-    lastSync: "Il y a 2 min"
-  },
-  {
-    id: 2,
-    name: "Reddit",
-    icon: "🔴",
-    status: "Opérationnel" as const,
-    collected24h: 8923,
-    errors: 2,
-    lastSync: "Il y a 5 min"
-  },
-  {
-    id: 3,
-    name: "Instagram",
-    icon: "📷",
-    status: "Dégradé" as const,
-    collected24h: 6734,
-    errors: 15,
-    lastSync: "Il y a 15 min"
-  },
-  {
-    id: 4,
-    name: "TikTok",
-    icon: "🎵",
-    status: "Maintenance" as const,
-    collected24h: 0,
-    errors: 0,
-    lastSync: "Il y a 2h"
-  },
-  {
-    id: 5,
-    name: "News & Blogs",
-    icon: "📰",
-    status: "Opérationnel" as const,
-    collected24h: 4521,
-    errors: 0,
-    lastSync: "Il y a 10 min"
-  },
-  {
-    id: 6,
-    name: "YouTube",
-    icon: "📹",
-    status: "Opérationnel" as const,
-    collected24h: 3245,
-    errors: 1,
-    lastSync: "Il y a 20 min"
-  }
-];
+import { useEffect, useState } from "react";
+import { ConnectorCard } from "@/components/connectors/ConnectorCard";
+import { RefreshCw, Loader2, Database, Server, Cpu, Activity } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 
 export default function ConnectorsPage() {
-  const totalCollected = connectorsData.reduce((sum, c) => sum + c.collected24h, 0);
-  const totalErrors = connectorsData.reduce((sum, c) => sum + c.errors, 0);
-  const operationalCount = connectorsData.filter(c => c.status === "Opérationnel").length;
+  const [sources, setSources] = useState<any[]>([]);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [sourcesRes, statusRes] = await Promise.all([
+        apiClient.getSources(),
+        apiClient.getSystemStatus()
+      ]);
+
+      // Handle Sources
+      const sourceData = (sourcesRes as any).data || (Array.isArray(sourcesRes) ? sourcesRes : []);
+      const mappedSources = sourceData.map((source: any) => ({
+        id: source.id,
+        name: source.name || source.type,
+        icon: getIconForType(source.type),
+        status: source.isActive ? "Opérationnel" : "Hors ligne",
+        collected24h: source.stats?.collected24h || 0,
+        errors: source.stats?.errors || 0,
+        lastSync: source.lastScrape ? formatDistanceToNow(new Date(source.lastScrape), { addSuffix: true, locale: fr }) : "Jamais"
+      }));
+      setSources(mappedSources);
+
+      // Handle System Status
+      if (statusRes.success) {
+        setSystemStatus(statusRes.data);
+      }
+
+    } catch (error) {
+      console.error("Failed to fetch connectors/status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getIconForType = (type: string) => {
+    const t = (type || '').toLowerCase();
+    if (t.includes('twitter') || t.includes('x')) return "❌";
+    if (t.includes('reddit')) return "🔴";
+    if (t.includes('instagram')) return "📷";
+    if (t.includes('tiktok')) return "🎵";
+    if (t.includes('youtube')) return "📹";
+    if (t.includes('news') || t.includes('web')) return "📰";
+    return "🌐";
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'connected':
+      case 'operational':
+        return 'text-green-500 bg-green-50 border-green-200';
+      case 'degraded':
+        return 'text-yellow-500 bg-yellow-50 border-yellow-200';
+      default:
+        return 'text-red-500 bg-red-50 border-red-200';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'connected':
+      case 'operational':
+        return 'Opérationnel';
+      case 'degraded':
+        return 'Dégradé';
+      case 'disconnected':
+        return 'Déconnecté';
+      case 'unreachable':
+        return 'Inaccessible';
+      default:
+        return 'Inconnu';
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1 flex items-center gap-2">
-              🔌 Connecteurs & Sources
+              🔌 État Système & Sources
             </h1>
             <p className="text-sm text-muted-foreground">
-              Piloter la collecte de données
+              Surveillance de l'infrastructure et des sources de données
             </p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-            <RefreshCw className="w-4 h-4" />
-            Rafraîchir tout
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Rafraîchir
           </button>
         </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-5">
-          <div className="text-sm text-muted-foreground mb-1">
-            Total collectées (24h)
-          </div>
-          <div className="text-3xl font-bold text-foreground">
-            {totalCollected.toLocaleString()}
-          </div>
+      {loading && !systemStatus ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      ) : (
+        <>
+          {/* Section: Infrastructure System */}
+          <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
+            <Activity className="w-5 h-5 text-purple-500" />
+            Infrastructure Système
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {/* Database */}
+            <div className={`p-4 rounded-xl border ${getStatusColor(systemStatus?.database || 'unknown')}`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="p-2 bg-white/50 rounded-lg">
+                  <Database className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/50">
+                  {getStatusLabel(systemStatus?.database || 'unknown')}
+                </span>
+              </div>
+              <div className="font-semibold text-lg">Base de données</div>
+              <div className="text-sm opacity-80">PostgreSQL (Prisma)</div>
+            </div>
 
-        <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-xl p-5">
-          <div className="text-sm text-muted-foreground mb-1">
-            Connecteurs actifs
-          </div>
-          <div className="text-3xl font-bold text-foreground">
-            {operationalCount}/{connectorsData.length}
-          </div>
-        </div>
+            {/* Redis */}
+            <div className={`p-4 rounded-xl border ${getStatusColor(systemStatus?.redis || 'unknown')}`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="p-2 bg-white/50 rounded-lg">
+                  <Server className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/50">
+                  {getStatusLabel(systemStatus?.redis || 'unknown')}
+                </span>
+              </div>
+              <div className="font-semibold text-lg">Cache & Queue</div>
+              <div className="text-sm opacity-80">Redis</div>
+            </div>
 
-        <div className={`${
-          totalErrors > 0 
-            ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900' 
-            : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
-        } border rounded-xl p-5`}>
-          <div className="text-sm text-muted-foreground mb-1">
-            Erreurs totales
-          </div>
-          <div className={`text-3xl font-bold ${
-            totalErrors > 0 ? 'text-red-600' : 'text-green-600'
-          }`}>
-            {totalErrors}
-          </div>
-        </div>
-      </div>
+            {/* Workers */}
+            <div className={`p-4 rounded-xl border ${getStatusColor(systemStatus?.workers || 'unknown')}`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="p-2 bg-white/50 rounded-lg">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/50">
+                  {getStatusLabel(systemStatus?.workers || 'unknown')}
+                </span>
+              </div>
+              <div className="font-semibold text-lg">Workers</div>
+              <div className="text-sm opacity-80">Traitement asynchrone</div>
+            </div>
 
-      {/* Connectors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {connectorsData.map((connector) => (
-          <ConnectorCard
-            key={connector.id}
-            name={connector.name}
-            icon={connector.icon}
-            status={connector.status}
-            collected24h={connector.collected24h}
-            errors={connector.errors}
-            lastSync={connector.lastSync}
-            onConfigure={() => console.log("Configure", connector.id)}
-            onTest={() => console.log("Test", connector.id)}
-          />
-        ))}
-      </div>
+            {/* AI Service */}
+            <div className={`p-4 rounded-xl border ${getStatusColor(systemStatus?.aiService || 'unknown')}`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="p-2 bg-white/50 rounded-lg">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/50">
+                  {getStatusLabel(systemStatus?.aiService || 'unknown')}
+                </span>
+              </div>
+              <div className="font-semibold text-lg">Service IA</div>
+              <div className="text-sm opacity-80">Analyse de texte</div>
+            </div>
+          </div>
+
+          {/* Section: Data Sources */}
+          <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
+            <Server className="w-5 h-5 text-blue-500" />
+            Sources de Données
+          </h2>
+
+          {sources.length === 0 ? (
+            <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-border">
+              <p className="text-muted-foreground">Aucune source de données configurée.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {sources.map((connector) => (
+                <ConnectorCard
+                  key={connector.id}
+                  name={connector.name}
+                  icon={connector.icon}
+                  status={connector.status}
+                  collected24h={connector.collected24h}
+                  errors={connector.errors}
+                  lastSync={connector.lastSync}
+                  onConfigure={() => console.log("Configure", connector.id)}
+                  onTest={() => console.log("Test", connector.id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -1,0 +1,634 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+}
+
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// ========================================
+// ENUMS
+// ========================================
+
+enum Role {
+    ADMIN
+    USER
+    OWNER
+}
+
+enum SubscriptionTier {
+    FREE
+    STARTER
+    PRO
+    PREMIUM
+    TEAM
+    ENTERPRISE
+}
+
+enum SubscriptionStatus {
+    ACTIVE
+    INACTIVE
+    CANCELLED
+    PAST_DUE
+    TRIALING
+}
+
+enum SourceType {
+    TWITTER
+    FACEBOOK
+    INSTAGRAM
+    LINKEDIN
+    GOOGLE_REVIEWS
+    TRUSTPILOT
+    TRIPADVISOR
+    YOUTUBE
+    REDDIT
+    NEWS
+    BLOG
+    FORUM
+    RSS
+    OTHER
+}
+
+enum SentimentType {
+    POSITIVE
+    NEGATIVE
+    NEUTRAL
+    MIXED
+}
+
+enum AlertLevel {
+    LOW
+    MEDIUM
+    HIGH
+    CRITICAL
+}
+
+enum AlertStatus {
+    NEW
+    READ
+    ARCHIVED
+    RESOLVED
+}
+
+enum AlertCondition {
+    NEGATIVE_SENTIMENT_THRESHOLD
+    KEYWORD_FREQUENCY
+    MENTION_SPIKE
+    SENTIMENT_DROP
+    CUSTOM
+}
+
+enum ActionStatus {
+    PENDING
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+}
+
+enum ReportType {
+    DAILY
+    WEEKLY
+    MONTHLY
+    QUARTERLY
+    YEARLY
+    CUSTOM
+}
+
+// ========================================
+// USERS & AUTHENTICATION
+// ========================================
+
+model User {
+    id                String    @id @default(cuid())
+    email             String    @unique
+    password          String
+    name              String?
+    firstName         String?
+    lastName          String?
+    avatar            String?
+    role              Role      @default(USER)
+    isActive          Boolean   @default(true)
+    emailVerified     Boolean   @default(false)
+    emailVerifiedAt   DateTime?
+    resetToken        String?   @unique
+    resetTokenExpires DateTime?
+    lastLoginAt       DateTime?
+    createdAt         DateTime  @default(now())
+    updatedAt         DateTime  @updatedAt
+
+    // Relations
+    organizationId       String?
+    organization         Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+    createdOrganizations Organization[] @relation("OrganizationOwner")
+    actions              Action[]
+    notifications        Notification[]
+    activityLogs         ActivityLog[]
+
+    @@index([email])
+    @@index([organizationId])
+    @@index([role])
+    @@index([isActive])
+    @@map("users")
+}
+
+// ========================================
+// ORGANIZATIONS & SUBSCRIPTIONS
+// ========================================
+
+model Organization {
+    id         String   @id @default(cuid())
+    name       String
+    slug       String   @unique
+    industry   String?
+    website    String?
+    logo       String?
+    numberTeam String?
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    // Relations
+    ownerId      String
+    owner        User          @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+    members      User[]
+    subscription Subscription?
+    brands       Brand[]
+    webhooks     Webhook[]
+    integrations Integration[]
+    apiKeys      ApiKey[]
+
+    @@index([slug])
+    @@index([ownerId])
+    @@map("organizations")
+}
+
+model Subscription {
+    id                   String             @id @default(cuid())
+    plan                 SubscriptionTier   @default(FREE)
+    status               SubscriptionStatus @default(INACTIVE)
+    stripeCustomerId     String?            @unique
+    stripeSubscriptionId String?            @unique
+    stripePriceId        String?
+    currentPeriodStart   DateTime?
+    currentPeriodEnd     DateTime?
+    cancelAtPeriodEnd    Boolean            @default(false)
+    trialEndsAt          DateTime?
+    createdAt            DateTime           @default(now())
+    updatedAt            DateTime           @updatedAt
+
+    // Relations
+    organizationId String       @unique
+    organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+    invoices       Invoice[]
+
+    @@index([stripeCustomerId])
+    @@index([stripeSubscriptionId])
+    @@index([status])
+    @@map("subscriptions")
+}
+
+model Invoice {
+    id              String    @id @default(cuid())
+    amount          Float
+    currency        String    @default("usd")
+    status          String
+    stripeInvoiceId String?   @unique
+    invoiceUrl      String?
+    pdfUrl          String?
+    paidAt          DateTime?
+    dueDate         DateTime?
+    createdAt       DateTime  @default(now())
+
+    // Relations
+    subscriptionId String
+    subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+    @@index([subscriptionId])
+    @@index([status])
+    @@map("invoices")
+}
+
+// ========================================
+// BRANDS & SOURCES
+// ========================================
+
+model Brand {
+    id          String   @id @default(cuid())
+    name        String
+    description String?
+    website     String?
+    logo        String?
+    color       String? // Couleur de la marque pour l'UI
+    isActive    Boolean  @default(true)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    // Relations
+    organizationId String
+    organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+    sources        Source[]
+    mentions       Mention[]
+    keywords       Keyword[]
+    alerts         Alert[]
+    reports        Report[]
+    competitors    Competitor[] @relation("BrandCompetitors")
+    competitorOf   Competitor[] @relation("CompetitorBrand")
+
+    @@index([organizationId])
+    @@index([isActive])
+    @@map("brands")
+}
+
+model Competitor {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+
+    // Relations
+    brandId      String
+    brand        Brand  @relation("BrandCompetitors", fields: [brandId], references: [id], onDelete: Cascade)
+    competitorId String
+    competitor   Brand  @relation("CompetitorBrand", fields: [competitorId], references: [id], onDelete: Cascade)
+
+    @@unique([brandId, competitorId])
+    @@index([brandId])
+    @@index([competitorId])
+    @@map("competitors")
+}
+
+model Source {
+    id                String     @id @default(cuid())
+    type              SourceType
+    name              String
+    url               String?
+    username          String?
+    accessToken       String? // Pour les APIs
+    refreshToken      String?
+    tokenExpiresAt    DateTime?
+    isActive          Boolean    @default(true)
+    lastScrapedAt     DateTime?
+    scrapingFrequency Int        @default(3600) // en secondes
+    errorCount        Int        @default(0)
+    lastError         String?
+    createdAt         DateTime   @default(now())
+    updatedAt         DateTime   @updatedAt
+
+    // Relations
+    brandId  String
+    brand    Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+    mentions Mention[]
+
+    @@index([brandId])
+    @@index([type])
+    @@index([isActive])
+    @@map("sources")
+}
+
+// ========================================
+// MENTIONS & SENTIMENT ANALYSIS
+// ========================================
+
+model Mention {
+    id              String        @id @default(cuid())
+    content         String        @db.Text
+    author          String?
+    authorUrl       String?
+    authorAvatar    String?
+    url             String?
+    sentiment       SentimentType @default(NEUTRAL)
+    sentimentScore  Float? // -1 à 1
+    language        String?
+    reachScore      Int? // Score de portée/viralité
+    engagementCount Int           @default(0)
+    publishedAt     DateTime
+    analyzedAt      DateTime?
+    rawData         Json? // Données brutes de la source
+    isProcessed     Boolean       @default(false)
+    createdAt       DateTime      @default(now())
+    updatedAt       DateTime      @updatedAt
+
+    // Relations
+    brandId         String
+    brand           Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+    sourceId        String
+    source          Source           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+    mentionKeywords MentionKeyword[]
+    alertTriggers   AlertTrigger[]
+
+    @@index([brandId])
+    @@index([sourceId])
+    @@index([sentiment])
+    @@index([publishedAt])
+    @@index([isProcessed])
+    @@map("mentions")
+}
+
+// ========================================
+// KEYWORDS
+// ========================================
+
+model Keyword {
+    id         String   @id @default(cuid())
+    word       String
+    category   String?
+    priority   Int      @default(0)
+    isNegative Boolean  @default(false)
+    isActive   Boolean  @default(true)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    // Relations
+    brandId         String
+    brand           Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+    mentionKeywords MentionKeyword[]
+
+    @@unique([brandId, word])
+    @@index([brandId])
+    @@index([word])
+    @@index([isActive])
+    @@map("keywords")
+}
+
+model MentionKeyword {
+    id        String   @id @default(cuid())
+    count     Int      @default(1)
+    createdAt DateTime @default(now())
+
+    // Relations
+    mentionId String
+    mention   Mention @relation(fields: [mentionId], references: [id], onDelete: Cascade)
+    keywordId String
+    keyword   Keyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+    @@unique([mentionId, keywordId])
+    @@index([mentionId])
+    @@index([keywordId])
+    @@map("mention_keywords")
+}
+
+// ========================================
+// ALERTS
+// ========================================
+
+model Alert {
+    id              String         @id @default(cuid())
+    name            String
+    description     String?
+    condition       AlertCondition
+    threshold       Float
+    level           AlertLevel     @default(MEDIUM)
+    status          AlertStatus    @default(NEW)
+    isActive        Boolean        @default(true)
+    lastTriggeredAt DateTime?
+    triggerCount    Int            @default(0)
+    createdAt       DateTime       @default(now())
+    updatedAt       DateTime       @updatedAt
+
+    // Relations
+    brandId  String
+    brand    Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+    triggers AlertTrigger[]
+    rules    AlertRule[]
+
+    @@index([brandId])
+    @@index([isActive])
+    @@index([status])
+    @@index([level])
+    @@map("alerts")
+}
+
+model AlertRule {
+    id        String   @id @default(cuid())
+    field     String // Ex: "sentiment", "keyword", "source"
+    operator  String // Ex: "equals", "contains", "greater_than"
+    value     String
+    createdAt DateTime @default(now())
+
+    // Relations
+    alertId String
+    alert   Alert  @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+    @@index([alertId])
+    @@map("alert_rules")
+}
+
+model AlertTrigger {
+    id        String   @id @default(cuid())
+    value     Float // Valeur qui a déclenché l'alerte
+    message   String
+    isRead    Boolean  @default(false)
+    createdAt DateTime @default(now())
+
+    // Relations
+    alertId   String
+    alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+    mentionId String?
+    mention   Mention? @relation(fields: [mentionId], references: [id], onDelete: SetNull)
+
+    @@index([alertId])
+    @@index([isRead])
+    @@index([createdAt])
+    @@map("alert_triggers")
+}
+
+// ========================================
+// ACTIONS
+// ========================================
+
+model Action {
+    id          String       @id @default(cuid())
+    title       String
+    description String?      @db.Text
+    status      ActionStatus @default(PENDING)
+    priority    Int          @default(0)
+    dueDate     DateTime?
+    completedAt DateTime?
+    notes       String?      @db.Text
+    tags        String[]     @default([])
+    createdAt   DateTime     @default(now())
+    updatedAt   DateTime     @updatedAt
+
+    // Relations
+    assignedToId String?
+    assignedTo   User?   @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+    @@index([status])
+    @@index([assignedToId])
+    @@index([dueDate])
+    @@index([priority])
+    @@map("actions")
+}
+
+// ========================================
+// REPORTS
+// ========================================
+
+model Report {
+    id          String     @id @default(cuid())
+    title       String
+    type        ReportType
+    startDate   DateTime
+    endDate     DateTime
+    data        Json // Données du rapport
+    format      String     @default("json") // json, pdf, csv
+    fileUrl     String? // URL du fichier généré
+    generatedAt DateTime   @default(now())
+    createdAt   DateTime   @default(now())
+
+    // Relations
+    brandId String
+    brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+    @@index([brandId])
+    @@index([type])
+    @@index([startDate, endDate])
+    @@map("reports")
+}
+
+// ========================================
+// NOTIFICATIONS
+// ========================================
+
+model Notification {
+    id        String   @id @default(cuid())
+    title     String
+    message   String
+    type      String // alert, mention, report, system
+    isRead    Boolean  @default(false)
+    data      Json? // Données supplémentaires
+    createdAt DateTime @default(now())
+
+    // Relations
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([isRead])
+    @@index([createdAt])
+    @@map("notifications")
+}
+
+// ========================================
+// WEBHOOKS
+// ========================================
+
+model Webhook {
+    id         String   @id @default(cuid())
+    name       String
+    url        String
+    events     String[] // Types d'événements à écouter
+    secret     String? // Secret pour signer les payloads
+    isActive   Boolean  @default(true)
+    lastError  String?
+    errorCount Int      @default(0)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    // Relations
+    organizationId String
+    organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+    logs           WebhookLog[]
+
+    @@index([organizationId])
+    @@index([isActive])
+    @@map("webhooks")
+}
+
+model WebhookLog {
+    id           String   @id @default(cuid())
+    event        String
+    payload      Json
+    response     Json?
+    statusCode   Int?
+    success      Boolean
+    errorMessage String?
+    createdAt    DateTime @default(now())
+
+    // Relations
+    webhookId String
+    webhook   Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+    @@index([webhookId])
+    @@index([createdAt])
+    @@index([success])
+    @@map("webhook_logs")
+}
+
+// ========================================
+// INTEGRATIONS
+// ========================================
+
+model Integration {
+    id           String    @id @default(cuid())
+    type         String // slack, teams, email, zapier
+    name         String
+    config       Json // Configuration spécifique à l'intégration
+    isActive     Boolean   @default(true)
+    lastSyncAt   DateTime?
+    errorMessage String?
+    createdAt    DateTime  @default(now())
+    updatedAt    DateTime  @updatedAt
+
+    // Relations
+    organizationId String
+    organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+    @@index([organizationId])
+    @@index([type])
+    @@index([isActive])
+    @@map("integrations")
+}
+
+// ========================================
+// API KEYS
+// ========================================
+
+model ApiKey {
+    id          String    @id @default(cuid())
+    name        String
+    key         String    @unique
+    lastUsedAt  DateTime?
+    expiresAt   DateTime?
+    isActive    Boolean   @default(true)
+    permissions String[]  @default([])
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    // Relations
+    organizationId String
+    organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+    @@index([organizationId])
+    @@index([key])
+    @@index([isActive])
+    @@map("api_keys")
+}
+
+// ========================================
+// ACTIVITY LOGS
+// ========================================
+
+model ActivityLog {
+    id          String   @id @default(cuid())
+    action      String // create, update, delete, login, etc.
+    entity      String // user, brand, source, etc.
+    entityId    String?
+    description String?
+    metadata    Json?
+    ipAddress   String?
+    userAgent   String?
+    createdAt   DateTime @default(now())
+
+    // Relations
+    userId String?
+    user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+    @@index([userId])
+    @@index([entity])
+    @@index([createdAt])
+    @@map("activity_logs")
+}

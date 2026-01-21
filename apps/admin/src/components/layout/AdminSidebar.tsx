@@ -1,13 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Building2, 
-  Users, 
-  Plug, 
-  Key, 
-  Bell, 
-  Brain, 
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  Plug,
+  Key,
+  Bell,
+  Brain,
   CheckCircle,
+  Database,
+  MessageSquare,
   ChevronLeft,
   ArrowLeft
 } from "lucide-react";
@@ -28,9 +30,11 @@ const menuItems = [
     ]
   },
   {
-    section: "DONNÉES",
+    section: "VEILLE",
     items: [
-      { icon: Plug, label: "Connecteurs", path: "/admin/connectors" },
+      { icon: MessageSquare, label: "Mentions", path: "/admin/mentions" },
+      { icon: Building2, label: "Marques", path: "/admin/brands" },
+      { icon: Database, label: "Sources de données", path: "/admin/sources" },
       { icon: Key, label: "Mots-clés & règles", path: "/admin/keywords" },
       { icon: Bell, label: "Alertes", path: "/admin/alerts" }
     ]
@@ -38,8 +42,8 @@ const menuItems = [
   {
     section: "AVANCÉ",
     items: [
-      { icon: Brain, label: "IA & modèles", path: "/admin/ai" },
-      { icon: CheckCircle, label: "Qualité des données", path: "/admin/quality" }
+      { icon: Plug, label: "État système (Connecteurs)", path: "/admin/connectors" },
+      { icon: Brain, label: "IA & modèles", path: "/admin/ai" }
     ]
   }
 ];
@@ -48,9 +52,8 @@ export function AdminSidebar({ isCollapsed = false, onToggle, onClose }: AdminSi
   const location = useLocation();
 
   return (
-    <div className={`h-full flex flex-col bg-card border-r border-border transition-all duration-300 ${
-      isCollapsed ? 'w-20' : 'w-64'
-    }`}>
+    <div className={`h-full flex flex-col bg-card border-r border-border transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'
+      }`}>
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
@@ -65,15 +68,14 @@ export function AdminSidebar({ isCollapsed = false, onToggle, onClose }: AdminSi
               </div>
             </div>
           )}
-          
+
           {/* Toggle button desktop */}
           <button
             onClick={onToggle}
             className="hidden lg:flex p-1.5 hover:bg-muted rounded-lg transition-colors"
           >
-            <ChevronLeft className={`w-4 h-4 text-muted-foreground transition-transform ${
-              isCollapsed ? 'rotate-180' : ''
-            }`} />
+            <ChevronLeft className={`w-4 h-4 text-muted-foreground transition-transform ${isCollapsed ? 'rotate-180' : ''
+              }`} />
           </button>
 
           {/* Close button mobile */}
@@ -101,16 +103,15 @@ export function AdminSidebar({ isCollapsed = false, onToggle, onClose }: AdminSi
               {section.items.map((item, itemIdx) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
-                
+
                 return (
                   <Link
                     key={itemIdx}
                     to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    } ${isCollapsed ? 'justify-center' : ''}`}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${isActive
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      } ${isCollapsed ? 'justify-center' : ''}`}
                     title={isCollapsed ? item.label : undefined}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
@@ -127,9 +128,8 @@ export function AdminSidebar({ isCollapsed = false, onToggle, onClose }: AdminSi
 
       {/* Footer - User */}
       <div className="p-3 border-t border-border">
-        <div className={`flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer ${
-          isCollapsed ? 'justify-center' : ''
-        }`}>
+        <div className={`flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer ${isCollapsed ? 'justify-center' : ''
+          }`}>
           <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0">
             <span className="text-white font-semibold text-sm">SA</span>
           </div>

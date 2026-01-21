@@ -1,10 +1,12 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
 interface OrganisationTableRowProps {
   name: string;
   createdDate: string;
-  plan: "Enterprise" | "Professional" | "Starter";
+  plan: string;
   users: number;
-  mentions: number;
-  iaUsage: string;
+  brands: number;
   status: "Actif" | "Suspendu" | "Inactif";
   onViewDetails: () => void;
 }
@@ -14,84 +16,78 @@ export function OrganisationTableRow({
   createdDate,
   plan,
   users,
-  mentions,
-  iaUsage,
+  brands,
   status,
   onViewDetails
 }: OrganisationTableRowProps) {
   const getPlanStyle = () => {
-    switch (plan) {
-      case "Enterprise":
-        return "bg-purple-100 text-purple-700";
-      case "Professional":
-        return "bg-blue-100 text-blue-700";
-      case "Starter":
-        return "bg-gray-100 text-gray-700";
+    switch (plan.toUpperCase()) {
+      case "ENTERPRISE":
+        return "bg-purple-100 text-purple-700 hover:bg-purple-100 border-none";
+      case "PROFESSIONAL":
+        return "bg-blue-100 text-blue-700 hover:bg-blue-100 border-none";
+      case "STARTER":
+        return "bg-amber-100 text-amber-700 hover:bg-amber-100 border-none";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-slate-100 text-slate-700 hover:bg-slate-100 border-none";
     }
   };
 
   const getStatusStyle = () => {
     switch (status) {
       case "Actif":
-        return "bg-green-100 text-green-700";
+        return "bg-green-50 text-green-700 border-green-200";
       case "Suspendu":
-        return "bg-orange-100 text-orange-700";
-      case "Inactif":
-        return "bg-gray-100 text-gray-700";
+        return "bg-orange-50 text-orange-700 border-orange-200";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-slate-50 text-slate-700 border-slate-200";
     }
   };
 
   return (
-    <tr className="border-b border-border hover:bg-muted/50 transition-colors">
+    <tr className="group hover:bg-muted/30 transition-colors">
       {/* Organisation */}
-      <td className="px-4 py-4">
-        <div>
-          <div className="font-medium text-sm text-foreground">{name}</div>
-          <div className="text-xs text-muted-foreground">Créée le {createdDate}</div>
+      <td className="px-6 py-4">
+        <div className="flex flex-col">
+          <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{name}</span>
+          <span className="text-[10px] text-muted-foreground">Créée le {createdDate}</span>
         </div>
       </td>
 
       {/* Plan */}
-      <td className="px-4 py-4">
-        <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getPlanStyle()}`}>
+      <td className="px-6 py-4">
+        <Badge className={`font-bold text-[10px] uppercase tracking-wider ${getPlanStyle()}`}>
           {plan}
-        </span>
+        </Badge>
       </td>
 
       {/* Utilisateurs */}
-      <td className="px-4 py-4">
-        <span className="text-sm text-foreground">{users}</span>
+      <td className="px-6 py-4 text-center">
+        <span className="text-sm font-medium text-foreground">{users}</span>
       </td>
 
-      {/* Mentions */}
-      <td className="px-4 py-4">
-        <span className="text-sm text-foreground">{mentions.toLocaleString()}</span>
-      </td>
-
-      {/* IA Usage */}
-      <td className="px-4 py-4">
-        <span className="text-sm text-foreground">{iaUsage}</span>
+      {/* Marques */}
+      <td className="px-6 py-4 text-center">
+        <span className="text-sm font-medium text-foreground">{brands}</span>
       </td>
 
       {/* Statut */}
-      <td className="px-4 py-4">
-        <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getStatusStyle()}`}>
+      <td className="px-6 py-4">
+        <Badge variant="outline" className={`font-medium text-[11px] ${getStatusStyle()}`}>
           {status}
-        </span>
+        </Badge>
       </td>
 
       {/* Actions */}
-      <td className="px-4 py-4">
-        <button
+      <td className="px-6 py-4 text-right">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onViewDetails}
-          className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors text-foreground"
+          className="h-8 text-xs font-semibold hover:bg-primary/5 hover:text-primary"
         >
-          Voir détails
-        </button>
+          Gérer
+        </Button>
       </td>
     </tr>
   );

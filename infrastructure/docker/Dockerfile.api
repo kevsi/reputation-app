@@ -1,12 +1,95 @@
-FROM node:20-alpine
-
+# ===============================
+# Stage 0: Base (Debian = Prisma safe)
+# ===============================
+FROM node:20-bookworm-slim AS base
 WORKDIR /app
 
-COPY apps/api/package*.json ./
+ENV NODE_ENV=production \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false
+
+RUN apt-get update && apt-get install -y \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ===============================
+# Stage 1: Install ALL deps (build)
+# ===============================
+FROM base AS deps
+ENV NODE_ENV=development
+
+COPY package*.json ./
+COPY turbo.json* ./
+COPY api/package*.json ./api/
+COPY database/package*.json ./database/
+COPY shared/package*.json ./shared/
+COPY apps/*/package*.json ./apps/
+
 RUN npm ci
 
-COPY apps/api/ ./
+# ===============================
+# Stage 2: Build
+# ===============================
+FROM base AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+
+COPY api/ ./api/
+COPY database/ ./database/
+COPY shared/ ./shared/
+COPY apps/ ./apps/
+COPY package*.json ./
+COPY turbo.json* ./
+
+# Prisma client (build-time)
+WORKDIR /app/database
+RUN npx prisma generate
+
+# Build API
+WORKDIR /app/api
 RUN npm run build
 
-EXPOSE 3000
-CMD ["node", "dist/main"]
+# ===============================
+# Stage 3: Production (runner)
+# ===============================
+FROM base AS runner
+WORKDIR /app
+
+# ---- User non-root
+RUN groupadd -g 1001 nodejs \
+ && useradd -m -u 1001 -g nodejs expressjs
+
+# ---- Manifests workspaces
+COPY package*.json ./
+COPY turbo.json* ./
+COPY api/package*.json ./api/
+COPY database/package*.json ./database/
+COPY shared/package*.json ./shared/
+
+# ---- Déps PROD only
+RUN npm ci --omit=dev \
+ && npm cache clean --force
+
+# ---- Artefacts buildés
+COPY --from=builder --chown=expressjs:nodejs /app/api/dist ./api/dist
+COPY --from=builder --chown=expressjs:nodejs /app/database ./database
+COPY --from=builder --chown=expressjs:nodejs /app/shared ./shared
+
+# ---- Prisma client runtime (safe)
+WORKDIR /app/database
+RUN npx prisma generate
+
+# ---- Runtime folders
+RUN mkdir -p /app/api/logs \
+ && chown -R expressjs:nodejs /app
+
+# ---- Switch user
+USER expressjs
+
+# ---- API
+WORKDIR /app/api
+EXPOSE 5001
+
+CMD ["node", "dist/index.js"]

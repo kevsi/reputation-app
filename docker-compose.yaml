@@ -1,22 +1,21 @@
-version: '3.8'
-
 services:
-  # Base de données PostgreSQL
   postgres:
     image: postgres:16-alpine
     container_name: sentinelle-postgres
     environment:
-      POSTGRES_USER: sentinelle
-      POSTGRES_PASSWORD: sentinelle_password
-      POSTGRES_DB: sentinelle_db
+      POSTGRES_DB: sentinelle
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - sentinelle-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Redis pour cache et queue
   redis:
     image: redis:7-alpine
     container_name: sentinelle-redis
@@ -24,30 +23,112 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - sentinelle-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
-  # MinIO pour storage (alternative S3)
-  minio:
-    image: minio/minio:latest
-    container_name: sentinelle-minio
+  adminer:
+    image: adminer:latest
+    container_name: sentinelle-adminer
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "8080:8080"
     environment:
-      MINIO_ROOT_USER: sentinelle
-      MINIO_ROOT_PASSWORD: sentinelle_password
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    networks:
-      - sentinelle-network
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+      target: runner
+    container_name: sentinelle-api
+    ports:
+      - "5001:5001"
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+      API_VERSION: v1
+    
+      # Database
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinelle
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
+      # Frontend URLs
+      CLIENT_URL: http://localhost:3000
+      ADMIN_URL: http://localhost:3001
+      LANDING_URL: http://localhost:3002
+      # JWT (secrets valides de 64 caractères)
+      JWT_SECRET: 7abdb777bd5642d93bda7fefd1687bd24469d02383be08cb6ba4c515ce67fba286042d631fe398a6a69da3aaa297d74ea904341e2f8623ecbcf3d7820e556f6b
+      JWT_EXPIRES_IN: 7d
+      JWT_REFRESH_SECRET: 5aa9005607e106702d1799630bc393bc0fa173629359e559e4e309206be8ae60971fb434b82cae8b229712d2dd4020e8e8ddfb72908f58303d2ce603c69ae772
+      JWT_REFRESH_EXPIRES_IN: 30d
+      # Stripe (valeurs de dev/test)
+      STRIPE_SECRET_KEY: sk_test_dev_placeholder_key_for_development_only
+      STRIPE_WEBHOOK_SECRET: whsec_dev_placeholder_secret_for_development
+      STRIPE_PUBLISHABLE_KEY: pk_test_dev_placeholder_key_for_development
+      # Email
+      EMAIL_FROM: noreply@sentinelle-reputation.com
+      EMAIL_FROM_NAME: Sentinelle Reputation
+      EMAIL_PROVIDER: sendgrid
+      SENDGRID_API_KEY: SG.dev_placeholder_key
+      # AI Service
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_API_KEY: dev_placeholder_ai_key
+      # AWS (optionnel pour dev)
+      AWS_ACCESS_KEY_ID: dev_placeholder
+      AWS_SECRET_ACCESS_KEY: dev_placeholder
+      AWS_S3_BUCKET: dev-bucket
+      AWS_REGION: eu-west-1
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+  
+  workers:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.workers
+      target: runner
+    container_name: sentinelle-workers
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinelle
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai-service:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+  
+  ai-service:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.ai
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - WORKERS=1
+      - LOG_LEVEL=info
+      - SENTIMENT_MODEL=nlptown/bert-base-multilingual-uncased-sentiment
+      - ENABLE_CACHE=true
+      - HF_HUB_OFFLINE=1
+    restart: always
 
 volumes:
   postgres_data:
   redis_data:
-  minio_data:
-
-networks:
-  sentinelle-network:
-    driver: bridge
+  huggingface_cache:

@@ -2,35 +2,37 @@
   "name": "sentinelle-reputation",
   "version": "1.0.0",
   "private": true,
+  "description": "Sentinelle-Reputation est une plateforme SaaS de **veille, d’analyse et de gestion de la réputation en ligne**. Elle permet de surveiller l’image d’une marque, d’un produit ou d’une organisation à travers les avis, commentaires et mentions publiés sur différentes sources web.",
+  "main": "index.js",
   "workspaces": [
     "apps/*",
-    "services/*",
-    "packages/*"
+    "api",
+    "workers",
+    "database",
+    "shared"
   ],
   "scripts": {
-    "dev": "./infrastructure/scripts/dev.sh",
-    "build": "./infrastructure/scripts/build.sh",
-    "deploy": "./infrastructure/scripts/deploy.sh",
-    
-    "dev:web": "npm run dev --workspace=apps/web",
-    "dev:api": "npm run start:dev --workspace=apps/api",
-    "dev:landing": "npm run dev --workspace=apps/landing",
-    "dev:admin": "npm run dev --workspace=apps/admin",
-    
-    "build:web": "npm run build --workspace=apps/web",
-    "build:api": "npm run build --workspace=apps/api",
-    "build:landing": "npm run build --workspace=apps/landing",
-    "build:admin": "npm run build --workspace=apps/admin",
-    
-    "db:migrate": "npm run migrate --workspace=apps/api",
-    "db:studio": "npm run studio --workspace=apps/api",
-    "db:seed": "npm run seed --workspace=apps/api",
-    
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kevsi/sentinelle-reputation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kevsi/sentinelle-reputation/issues"
+  },
+  "homepage": "https://github.com/kevsi/sentinelle-reputation#readme",
   "devDependencies": {
-    "typescript": "^5.3.0"
+    "turbo": "^2.7.2"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.5"
   }
 }
