@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActionItemCard } from "@/components/actions/ActionItemCard";
 import { Sparkles, Plus } from "lucide-react";
 
-const actionsData = {
+const _actionsData = {
   pending: [
     {
       id: "1",
@@ -57,15 +57,17 @@ const actionsData = {
 };
 
 export default function ActionsPage() {
-  const [actions, setActions] = useState(actionsData);
+  const [actions, _setActions] = useState(_actionsData);
 
-  const handleStart = (id: string) => {
-    console.log("Start action:", id);
+  const handleStart = (_id: string) => {
+    // Action started
+    
     // Logic to move action to in-progress
   };
 
-  const handleComplete = (id: string) => {
-    console.log("Complete action:", id);
+  const handleComplete = (_id: string) => {
+    // Action completed
+    
     // Logic to move action to completed
   };
 

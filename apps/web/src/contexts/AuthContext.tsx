@@ -1,14 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
-
-interface User {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    organizationId: string | null;
-    isActive: boolean;
-}
+import { isApiSuccess } from '@/types/http';
+import type { User } from '@/types/models';
 
 interface AuthContextType {
     user: User | null;
@@ -39,14 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (token) {
                 try {
                     const response = await apiClient.me();
-                    if (response.success && response.data) {
-                        setUser(response.data);
+                    if (isApiSuccess(response)) {
+                        setUser(response.data as User);
                     } else {
                         apiClient.setToken(null);
                     }
                 } catch (error) {
-                    console.error('Check auth error:', error);
                     apiClient.setToken(null);
+                    setUser(null);
                 }
             }
             setIsLoading(false);
@@ -59,8 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const response = await apiClient.login(email, password);
 
-            if (response.success && response.data) {
-                const { accessToken, user: userData } = response.data;
+            if (isApiSuccess(response)) {
+                const { accessToken, user: userData } = response.data as { accessToken: string; user: User };
 
                 // Sauvegarder le token
                 apiClient.setToken(accessToken);
@@ -71,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 throw new Error(response.error?.message || 'Login failed');
             }
         } catch (error: any) {
-            console.error('Login error:', error);
             throw new Error(error.error?.message || 'Invalid credentials');
         }
     };
@@ -80,8 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const response = await apiClient.register(data);
 
-            if (response.success && response.data) {
-                const { accessToken, user: userData } = response.data;
+            if (isApiSuccess(response)) {
+                const { accessToken, user: userData } = response.data as { accessToken: string; user: User };
 
                 // Sauvegarder le token
                 apiClient.setToken(accessToken);
@@ -92,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 throw new Error(response.error?.message || 'Registration failed');
             }
         } catch (error: any) {
-            console.error('Registration error:', error);
             if (error.status === 409) {
                 throw new Error('This email is already registered.');
             }

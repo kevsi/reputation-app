@@ -50,6 +50,33 @@ Le projet vise à transformer un grand volume de données textuelles en **indica
 
 Les mentions sont considérées comme **des données brutes**, non comme des tâches.
 
+### 3.3 Scraping Automatique
+
+Le système inclut un **moteur de collecte automatique** qui :
+
+* **Surveille en continu** les sources configurées selon des fréquences personnalisables
+* **Collecte les nouvelles mentions** en temps réel ou périodique
+* **Traite automatiquement** les données brutes (analyse de sentiment, extraction de métadonnées)
+* **Déclenche des alertes** en cas de signaux préoccupants
+
+#### Sources Supportées
+- **Trustpilot** : Avis clients avec scraping web
+- **Twitter** : Tweets via API officielle
+- **Reddit** : Discussions communautaires
+- **Extensible** : Architecture modulaire pour ajouter de nouvelles sources
+
+#### Configuration
+- **Fréquences personnalisables** : de 30 minutes à plusieurs heures
+- **Filtrage par mots-clés** : collecte ciblée selon les termes définis
+- **Activation/désactivation** : contrôle granulaire des sources
+- **Monitoring temps réel** : tableaux de bord et logs détaillés
+
+#### Architecture Technique
+- **Workers asynchrones** : traitement en arrière-plan avec BullMQ/Redis
+- **Scheduler intégré** : planification automatique des collectes
+- **Résilience** : gestion des erreurs et retry automatique
+- **Scalabilité** : traitement concurrentiel et mise en queue
+
 ---
 
 ## 4. Analyse des mentions
@@ -749,3 +776,51 @@ api/src/infrastructure/
 Tu peux **partir en production avec cette structure** et scaler jusqu'à 100k+ utilisateurs sans problème.
 
 **Question finale** : Es-tu d'accord avec cette analyse ? Des points qui te semblent encore discutables ?
+
+---
+
+## Logger structuré & gestion d’erreur (backend)
+
+### Principe
+Toutes les erreurs, avertissements et informations importantes du backend sont gérés via un Logger structuré centralisé (`api/src/shared/logger.ts`)
+
+- **Format JSON** pour tous les logs (facilement exploitable par des outils externes)
+- **Messages en français** pour la cohérence et la conformité
+- **Contexte enrichi** : chaque log peut inclure le composant, l’opération, l’ID utilisateur, etc.
+- **Niveaux** : `info`, `warn`, `error`, `debug`
+- **Aucune utilisation de `console.log` ou de loggers non centralisés**
+
+### Exemple d’utilisation
+```typescript
+import { Logger } from '@/shared/logger';
+
+try {
+  // ...
+} catch (error) {
+  Logger.error('Erreur lors de la création d’un utilisateur', error, {
+    composant: 'UsersService',
+    operation: 'createUser',
+    userId: user.id
+  });
+}
+```
+
+### Bonnes pratiques
+- Toujours fournir un contexte pertinent (composant, opération, identifiants)
+- Utiliser des messages clairs et concis, en français
+- Ne jamais masquer une erreur critique
+- Les logs sont visibles en développement et production (format JSON)
+
+---
+
+## Conventions de code & structure modulaire
+
+- **Architecture modulaire** : chaque domaine (mentions, users, reports, system, etc.) possède ses propres dossiers (controller, service, routes, validation)
+- **Séparation stricte des responsabilités**
+- **Aucune fusion de fichiers métiers** : chaque module reste indépendant
+- **Validation systématique des entrées** (Zod)
+- **Tests automatisés obligatoires pour chaque module critique**
+- **Documentation en français**
+- **Suppression régulière des scripts et fichiers obsolètes**
+
+---

@@ -1,4 +1,4 @@
-import { Sparkles, TrendingUp, AlertTriangle, Lightbulb } from "lucide-react";
+import { Sparkles, TrendingUp } from "lucide-react";
 
 interface Insight {
   type: "positive" | "neutral" | "warning";

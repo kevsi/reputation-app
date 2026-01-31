@@ -1,10 +1,11 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ReportCard } from "@/components/reports/ReportCard";
 import { ScheduledReportItem } from "@/components/reports/ScheduledReportItem";
 import { Plus, Loader2, RefreshCw, Calendar, FileText } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useBrand } from "@/contexts/BrandContext";
+import { useBrandListener } from "@/hooks/useBrandListener";
 import {
   Dialog,
   DialogContent,
@@ -23,58 +24,85 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Report, ScheduledReport, BrandDetail, ApiResponse } from "@/types/api";
+
+interface ReportFormSelection {
+  brandId: string;
+  type: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  format: 'pdf' | 'json';
+}
+
+interface MappedReport {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  status: "Terminé" | "En cours";
+  mentions: number;
+  sentiment: string;
+  engagement: number;
+}
+
+interface StatsCard {
+  total: number;
+  thisMonth: number;
+  scheduled: number;
+  pending: number;
+}
 
 export default function ReportsPage() {
-  const { user } = useAuth();
-  const [reports, setReports] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
+  // const { user } = useAuth();
+  const { selectedBrand } = useBrand();
+  const [reports, setReports] = useState<Report[]>([]);
+  const [brands, setBrands] = useState<BrandDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form state
-  const [selection, setSelection] = useState({
+  const [selection, setSelection] = useState<ReportFormSelection>({
     brandId: "",
     type: "WEEKLY",
     format: "pdf"
   });
 
-  const [scheduledReports, setScheduledReports] = useState([
-    { id: "s1", title: "Rapport quotidien", schedule: "Tous les jours à 9h00", isActive: true },
-    { id: "s2", title: "Résumé hebdomadaire", schedule: "Tous les lundis à 10h00", isActive: true }
+  const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([
+    { id: "s1", brandId: "", title: "Rapport quotidien", schedule: "Tous les jours à 9h00", isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: "s2", brandId: "", title: "Résumé hebdomadaire", schedule: "Tous les lundis à 10h00", isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
   ]);
 
-  const fetchData = async () => {
-    if (!user?.organizationId) return;
+  const fetchData = useCallback(async () => {
+    if (!selectedBrand) return;
+    
     setLoading(true);
     setError(null);
     try {
-      const [reportsRes, brandsRes] = await Promise.all([
-        apiClient.getReports({ organizationId: user.organizationId }),
-        apiClient.getBrands()
-      ]);
-
-      const reportsData = (reportsRes as any).data || (Array.isArray(reportsRes) ? reportsRes : []);
-      const brandsData = (brandsRes as any).data || (Array.isArray(brandsRes) ? brandsRes : []);
+      const reportsRes = await apiClient.getReports({ brandId: selectedBrand.id });
+      const reportsData: Report[] = Array.isArray((reportsRes as any).data) ? ((reportsRes as any).data as Report[]) : [];
 
       setReports(reportsData);
-      setBrands(brandsData);
+      setBrands(brands); // Use brands from context
 
-      if (brandsData.length > 0) {
-        setSelection(prev => ({ ...prev, brandId: brandsData[0].id }));
+      if (selectedBrand) {
+        setSelection(prev => ({ ...prev, brandId: selectedBrand.id }));
       }
     } catch (err) {
-      console.error("Failed to fetch data", err);
+      // const errorMessage = err instanceof Error ? err.message : "Une erreur est survenue";
       setError("Impossible de charger les données.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedBrand]);
 
   useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [fetchData]);
+
+  // Écouter les changements de brand
+  useBrandListener(async (_brand) => {
+    await fetchData();
+  });
 
   const handleGenerateReport = async () => {
     if (!selection.brandId) return;
@@ -85,7 +113,7 @@ export default function ReportsPage() {
       const startDate = new Date();
       startDate.setDate(endDate.getDate() - 7);
 
-      const response = await apiClient.callApi<any>('/reports/generate', {
+      const response = await apiClient.callApi<ApiResponse<Report>>('/reports/generate', {
         method: 'POST',
         body: JSON.stringify({
           brandId: selection.brandId,
@@ -99,15 +127,27 @@ export default function ReportsPage() {
       if (response.success) {
         toast.success("Rapport généré avec succès");
         setIsModalOpen(false);
-        fetchData(); // Refresh list
+        await fetchData(); // Refresh list
       } else {
         toast.error("Échec de la génération");
       }
     } catch (error) {
-      console.error("Error generating report", error);
+      // const errorMessage = error instanceof Error ? error.message : "Une erreur est survenue";
       toast.error("Une erreur est survenue");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleTypeChange = (val: string) => {
+    if (['DAILY', 'WEEKLY', 'MONTHLY'].includes(val)) {
+      setSelection({ ...selection, type: val as 'DAILY' | 'WEEKLY' | 'MONTHLY' });
+    }
+  };
+
+  const handleFormatChange = (val: string) => {
+    if (['pdf', 'json'].includes(val)) {
+      setSelection({ ...selection, format: val as 'pdf' | 'json' });
     }
   };
 
@@ -119,18 +159,18 @@ export default function ReportsPage() {
     );
   };
 
-  const mappedReports = reports.map((report: any) => ({
+  const mappedReports: MappedReport[] = reports.map((report) => ({
     id: report.id,
-    title: report.title || `Report ${report.brand?.name || 'Unknown'}`,
+    title: report.title || `Report ${report.brandId || 'Unknown'}`,
     type: report.type || "Ponctuel",
     date: report.createdAt ? new Date(report.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : "Date inconnue",
-    status: (report.status === 'COMPLETED' || report.generatedAt ? "Terminé" : "En cours") as "Terminé" | "En cours",
-    mentions: report.data?.summary?.totalMentions || 0,
-    sentiment: report.data?.summary?.sentimentScore ? `${Math.round(report.data.summary.sentimentScore * 100)}%` : "N/A",
-    engagement: report.data?.summary?.engagementCount || 0
+    status: (report.status === 'COMPLETED') ? "Terminé" : "En cours",
+    mentions: 0, // Placeholder
+    sentiment: "N/A", // Placeholder
+    engagement: 0 // Placeholder
   }));
 
-  const stats = {
+  const stats: StatsCard = {
     total: mappedReports.length,
     thisMonth: mappedReports.length, // Placeholder
     scheduled: scheduledReports.length,
@@ -194,7 +234,7 @@ export default function ReportsPage() {
                       <label className="text-sm font-medium">Période</label>
                       <Select
                         value={selection.type}
-                        onValueChange={(val) => setSelection({ ...selection, type: val })}
+                        onValueChange={handleTypeChange}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Choisir un type" />
@@ -210,7 +250,7 @@ export default function ReportsPage() {
                       <label className="text-sm font-medium">Format</label>
                       <Select
                         value={selection.format}
-                        onValueChange={(val) => setSelection({ ...selection, format: val })}
+                        onValueChange={handleFormatChange}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Choisir un format" />
@@ -292,10 +332,10 @@ export default function ReportsPage() {
                   <ReportCard
                     key={report.id}
                     {...report}
-                    onPreview={() => console.log("Preview", report.id)}
-                    onDownload={() => console.log("Download", report.id)}
-                    onEdit={() => console.log("Edit", report.id)}
-                    onDelete={() => console.log("Delete", report.id)}
+                    onPreview={() => undefined}
+                    onDownload={() => undefined}
+                    onEdit={() => undefined}
+                    onDelete={() => undefined}
                   />
                 ))}
               </div>

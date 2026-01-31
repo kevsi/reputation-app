@@ -6,8 +6,10 @@ import {
   AlertTriangle, 
   FileText, 
   Zap, 
-  Database, 
+  Database,
+  Building2,
   Settings,
+  Tag,
   X,
   ChevronLeft,
   ChevronRight
@@ -27,7 +29,9 @@ const menuItems = [
   { name: "Alertes", path: "/alerts", icon: AlertTriangle },
   { name: "Reports", path: "/reports", icon: FileText },
   { name: "Actions", path: "/actions", icon: Zap },
+  { name: "Marques", path: "/brands", icon: Building2 },
   { name: "Sources", path: "/sources", icon: Database },
+  { name: "Mots Clés", path: "/keywords", icon: Tag },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 

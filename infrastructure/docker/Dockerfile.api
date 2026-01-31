@@ -22,11 +22,14 @@ ENV NODE_ENV=development
 COPY package*.json ./
 COPY turbo.json* ./
 COPY api/package*.json ./api/
+COPY workers/package*.json ./workers/
 COPY database/package*.json ./database/
 COPY shared/package*.json ./shared/
-COPY apps/*/package*.json ./apps/
+COPY apps/admin/package*.json ./apps/admin/
+COPY apps/web/package*.json ./apps/web/
+COPY apps/landing/package*.json ./apps/landing/
 
-RUN npm ci
+RUN npm install
 
 # ===============================
 # Stage 2: Build
@@ -34,7 +37,8 @@ RUN npm ci
 FROM base AS builder
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
+# Copier tout le contenu de deps (package.json + tous les node_modules)
+COPY --from=deps /app /app
 
 COPY api/ ./api/
 COPY database/ ./database/
@@ -59,18 +63,22 @@ WORKDIR /app
 
 # ---- User non-root
 RUN groupadd -g 1001 nodejs \
- && useradd -m -u 1001 -g nodejs expressjs
+    && useradd -m -u 1001 -g nodejs expressjs
 
 # ---- Manifests workspaces
 COPY package*.json ./
 COPY turbo.json* ./
 COPY api/package*.json ./api/
+COPY workers/package*.json ./workers/
 COPY database/package*.json ./database/
 COPY shared/package*.json ./shared/
+COPY apps/admin/package*.json ./apps/admin/
+COPY apps/web/package*.json ./apps/web/
+COPY apps/landing/package*.json ./apps/landing/
 
 # ---- Déps PROD only
-RUN npm ci --omit=dev \
- && npm cache clean --force
+RUN npm install --omit=dev \
+    && npm cache clean --force
 
 # ---- Artefacts buildés
 COPY --from=builder --chown=expressjs:nodejs /app/api/dist ./api/dist
@@ -83,7 +91,7 @@ RUN npx prisma generate
 
 # ---- Runtime folders
 RUN mkdir -p /app/api/logs \
- && chown -R expressjs:nodejs /app
+    && chown -R expressjs:nodejs /app
 
 # ---- Switch user
 USER expressjs

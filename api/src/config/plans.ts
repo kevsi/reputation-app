@@ -10,11 +10,16 @@ export interface PlanFeatureConfig {
     multiUser: number | boolean;
     integrations: string[];
     supportPriority: 'standard' | 'priority' | 'dedicated';
+    // Notifications
+    emailNotifications: boolean;
+    webhookNotifications: boolean;
+    customWebhooks: boolean;
+    notificationHistoryDays: number;
 }
 
 export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
     FREE: {
-        maxBrands: 1,
+        maxBrands: 5, // Increased for dev
         maxKeywordsPerBrand: 3,
         analyticsLevel: 'simple',
         historyDays: 7,
@@ -23,6 +28,10 @@ export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
         multiUser: false,
         integrations: [],
         supportPriority: 'standard',
+        emailNotifications: false,
+        webhookNotifications: false,
+        customWebhooks: false,
+        notificationHistoryDays: 7,
     },
     STARTER: {
         maxBrands: 3,
@@ -34,6 +43,10 @@ export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
         multiUser: false,
         integrations: [],
         supportPriority: 'standard',
+        emailNotifications: false,
+        webhookNotifications: false,
+        customWebhooks: false,
+        notificationHistoryDays: 30,
     },
     PRO: { // Optionnel, je le mets comme étape intermédiaire si besoin
         maxBrands: 10,
@@ -45,6 +58,10 @@ export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
         multiUser: false,
         integrations: [],
         supportPriority: 'standard',
+        emailNotifications: false,
+        webhookNotifications: false,
+        customWebhooks: false,
+        notificationHistoryDays: 90,
     },
     PREMIUM: {
         maxBrands: 20,
@@ -56,6 +73,10 @@ export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
         multiUser: 5,
         integrations: ['slack'],
         supportPriority: 'priority',
+        emailNotifications: true,
+        webhookNotifications: false,
+        customWebhooks: false,
+        notificationHistoryDays: 365,
     },
     TEAM: {
         maxBrands: 50,
@@ -67,6 +88,10 @@ export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
         multiUser: 999, // Illimité
         integrations: ['slack', 'webhook'],
         supportPriority: 'dedicated',
+        emailNotifications: true,
+        webhookNotifications: true,
+        customWebhooks: true,
+        notificationHistoryDays: 9999,
     },
     ENTERPRISE: {
         maxBrands: 999,
@@ -78,5 +103,9 @@ export const PLAN_CONFIG: Record<SubscriptionTier, PlanFeatureConfig> = {
         multiUser: 999,
         integrations: ['slack', 'webhook', 'custom'],
         supportPriority: 'dedicated',
+        emailNotifications: true,
+        webhookNotifications: true,
+        customWebhooks: true,
+        notificationHistoryDays: 9999,
     },
 };

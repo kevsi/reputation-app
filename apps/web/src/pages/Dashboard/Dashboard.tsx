@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LineChart } from "@/components/dashboard/LineChart";
 import BarChart from "@/components/dashboard/BarChart";
@@ -7,46 +7,78 @@ import ActivityChart from "@/components/dashboard/ActivityChart";
 import DonutChart from "@/components/dashboard/DonutChart";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { useBrand } from "@/contexts/BrandContext";
+import { useBrandListener } from "@/hooks/useBrandListener";
+import { Loader2, AlertCircle } from "lucide-react";
+import { DashboardStats, DashboardAlert } from "@/types/api";
+import { isApiError } from "@/types/http";
+
+interface DashboardData {
+  stats: DashboardStats | null;
+  alerts: DashboardAlert[];
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [data, setData] = useState<{ stats: any, alerts: any[] } | null>(null);
+  const { selectedBrand } = useBrand();
+  const [data, setData] = useState<DashboardData>({ stats: null, alerts: [] });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDashboardData = useCallback(async () => {
+    if (!selectedBrand) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [statsRes, alertsRes] = await Promise.all([
+        apiClient.getAnalyticsSummary({
+          brandId: selectedBrand.id,
+          startDate,
+          endDate
+        }),
+        apiClient.getAlerts({ brandId: selectedBrand.id })
+      ]);
+
+      const statsData: DashboardStats | null = isApiError(statsRes)
+        ? null
+        : (statsRes.data as DashboardStats | undefined) ?? null;
+      
+      const alertsData: DashboardAlert[] = isApiError(alertsRes)
+        ? []
+        : Array.isArray(alertsRes.data)
+          ? (alertsRes.data as DashboardAlert[])
+          : [];
+
+      setData({
+        stats: statsData,
+        alerts: alertsData
+      });
+    } catch (err) {
+      console.error('Dashboard error:', err);
+      setError('Une erreur est survenue lors du chargement du tableau de bord');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedBrand]);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user?.organizationId) return;
-
-      try {
-        setLoading(true);
-        const endDate = new Date().toISOString();
-        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
-
-        const [statsRes, alertsRes] = await Promise.all([
-          apiClient.getAnalyticsSummary({
-            organizationId: user.organizationId,
-            startDate,
-            endDate
-          }),
-          apiClient.getAlerts({ organizationId: user.organizationId })
-        ]);
-
-        setData({
-          stats: statsRes.success ? statsRes.data : null,
-          alerts: (alertsRes as any).data || (Array.isArray(alertsRes) ? alertsRes : [])
-        });
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchDashboardData();
-  }, [user]);
+  }, [fetchDashboardData]);
 
-  if (loading) {
+  // Écouter les changements de brand
+  useBrandListener(async () => {
+    await fetchDashboardData();
+  });
+
+  if (loading && !error) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background h-full min-h-[500px]">
         <div className="flex flex-col items-center gap-4">
@@ -57,14 +89,37 @@ export default function Dashboard() {
     );
   }
 
-  const { stats, alerts } = data || { stats: null, alerts: [] };
+  if (error && !selectedBrand) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-background h-full min-h-[500px]">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="w-8 h-8 text-destructive" />
+          <div>
+            <p className="text-sm font-semibold text-foreground">Erreur</p>
+            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+          </div>
+          <button
+            onClick={() => fetchDashboardData()}
+            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const totalMentions = stats?.totalMentions || 0;
-  const sentimentScore = stats?.sentimentScore || 0;
+  const { stats, alerts } = data;
+
+  const totalMentions = stats?.totalMentions ?? 0;
+  const sentimentScore = stats?.sentimentScore ?? 0;
   const activeAlerts = alerts.filter(a => a.status === 'ACTIVE' || a.status === 'PENDING').length;
 
-  // Reputation score calculation (simple mock derivation for now)
-  const reputationScore = Math.round((sentimentScore * 100) + (totalMentions > 0 ? 50 : 0));
+  // Score de réputation (0-100)
+  const reputationScore = Math.round(
+    (Math.max(0, Math.min(sentimentScore, 1)) * 80) + 
+    (Math.min(Math.log(totalMentions + 1), 5) / 5 * 20)
+  );
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">

@@ -1,46 +1,133 @@
-import { BaseCollector } from './base.collector';
+/**
+ * 🏆 Trustpilot Collector
+ * 
+ * Collecte les avis Trustpilot pour une marque donnée
+ */
+
+import { BaseCollector, RawMention, CollectorConfig } from './base.collector';
+import { Source, SourceType } from '@sentinelle/database';
+
+export interface TrustpilotConfig extends CollectorConfig {
+  companyName: string;  // ex: "nike" ou "amazon"
+  companyId?: string;   // ex: "4fd88569000064000b000546"
+}
 
 export class TrustpilotCollector extends BaseCollector {
-    async collect(url: string): Promise<any[]> {
-        console.log(`🕵️ Scraping Trustpilot: ${url}`);
+  
+  async collect(source: Source, keywords: string[]): Promise<RawMention[]> {
+    console.log(`🏆 Scraping Trustpilot for brand: ${source.type}`);
+    
+    const config = source.config as TrustpilotConfig;
+    const companyName = config.companyName || source.name;
+    const mentions: RawMention[] = [];
 
+    try {
+      // Trustpilot: https://www.trustpilot.com/review/amazon.com
+      const searchUrl = `https://www.trustpilot.com/review/${companyName}`;
+      
+      const html = await this.fetchHtml(searchUrl);
+      const $ = this.loadCheerio(html);
+      
+      // Récupérer tous les avis
+      const reviews: RawMention[] = [];
+      
+      // Sélecteurs Trustpilot (peut changer - à adapter si changement du DOM)
+      $('[data-review-id]').each((i, element) => {
         try {
-            const html = await this.fetchHtml(url);
-            const $ = this.loadCheerio(html);
-            const mentions: any[] = [];
-
-            // This is a simplified example of how we would parse Trustpilot reviews
-            // In a real scenario, we'd need to handle pagination and more complex selectors
-            $('.styles_reviewCardInner__907_e').each((i, element) => {
-                const content = $(element).find('.styles_reviewContent__1vH7f').text().trim();
-                const author = $(element).find('.styles_consumerName__4_Ska').text().trim();
-                const dateStr = $(element).find('time').attr('datetime');
-                const rating = $(element).find('.styles_reviewHeader__iU91u').attr('data-user-review-rating');
-
-                if (content) {
-                    mentions.push({
-                        content,
-                        author,
-                        publishedAt: dateStr ? new Date(dateStr) : new Date(),
-                        platformSentiment: this.mapRatingToSentiment(rating),
-                        rawData: { rating, originalDate: dateStr }
-                    });
+          const reviewId = $(element).attr('data-review-id');
+          const text = $(element).find('.review-content-header__body').text().trim() || 
+                      $(element).find('p').first().text().trim();
+          const author = $(element).find('.consumer-info__name').text().trim() || 'Anonymous';
+          const ratingStr = $(element).find('.star-rating').attr('data-rating') || '3';
+          const dateStr = $(element).find('time').attr('datetime') || new Date().toISOString();
+          
+          if (text && reviewId) {
+            // Vérifier si le texte contient un des mots-clés (optionnel)
+            const hasKeyword = keywords.length === 0 || 
+                              keywords.some(kw => 
+                                text.toLowerCase().includes(kw.toLowerCase())
+                              );
+            
+            if (hasKeyword) {
+              reviews.push({
+                text,
+                author,
+                url: searchUrl + '#' + reviewId,
+                publishedAt: new Date(dateStr),
+                externalId: reviewId,
+                platform: 'TRUSTPILOT' as SourceType,
+                engagementCount: 0,
+                rawData: {
+                  rating: parseInt(ratingStr),
+                  source: 'trustpilot'
                 }
-            });
-
-            // If we couldn't find anything with selectors (e.g. anti-bot or changed layout),
-            // we return a fallback or empty array.
-            return mentions;
-        } catch (error) {
-            console.error(`❌ Trustpilot scraping failed for ${url}:`, error);
-            return [];
+              });
+            }
+          }
+        } catch (e) {
+          console.warn(`Error parsing review element:`, e);
         }
+      });
+      
+      mentions.push(...reviews);
+      console.log(`✅ Found ${reviews.length} reviews on Trustpilot`);
+      
+    } catch (error) {
+      console.error(`❌ Trustpilot scraping failed:`, error);
+      throw error;
     }
 
-    private mapRatingToSentiment(rating?: string): string {
-        const r = parseInt(rating || '0');
-        if (r >= 4) return 'POSITIVE';
-        if (r <= 2) return 'NEGATIVE';
-        return 'NEUTRAL';
+    return mentions;
+  }
+
+  async validateCredentials(config: CollectorConfig): Promise<boolean> {
+    try {
+      const trustConfig = config as TrustpilotConfig;
+      if (!trustConfig.companyName) {
+        return false;
+      }
+      const result = await this.testConnection(config);
+      return result.success;
+    } catch (error) {
+      console.error('Trustpilot validation failed:', error);
+      return false;
     }
+  }
+
+  async testConnection(config: CollectorConfig): Promise<{ success: boolean; message: string }> {
+    try {
+      const trustConfig = config as TrustpilotConfig;
+      const companyName = trustConfig.companyName;
+      
+      if (!companyName) {
+        return { 
+          success: false, 
+          message: 'Company name is required' 
+        };
+      }
+
+      const searchUrl = `https://www.trustpilot.com/review/${companyName}`;
+      const html = await this.fetchHtml(searchUrl);
+      
+      // Vérifier que la page contient un élément de review
+      if (html.includes('review-content') || html.includes('[data-review-id]')) {
+        return { 
+          success: true, 
+          message: `Successfully connected to Trustpilot for ${companyName}` 
+        };
+      }
+      
+      return { 
+        success: false, 
+        message: `No reviews found for ${companyName}` 
+      };
+      
+    } catch (error) {
+      return { 
+        success: false, 
+        message: `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      };
+    }
+  }
 }
+

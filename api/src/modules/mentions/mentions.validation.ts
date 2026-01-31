@@ -14,6 +14,8 @@ export const createMentionSchema = z.object({
     publishedAt: z.string().pipe(z.coerce.date()),
     brandId: z.string(),
     sourceId: z.string(),
+    platform: z.string(), // SourceType enum value
+    externalId: z.string(), // ID unique sur la plateforme
 });
 
 export const updateMentionSchema = z.object({

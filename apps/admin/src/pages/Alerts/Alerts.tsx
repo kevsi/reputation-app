@@ -71,6 +71,7 @@ export default function AlertsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingAlert, setEditingAlert] = useState<AlertRule | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -148,9 +149,62 @@ export default function AlertsPage() {
     }
   };
 
+  const handleEditAlert = (alert: AlertRule) => {
+    setEditingAlert(alert);
+    setFormData({
+      name: alert.name,
+      description: '',
+      condition: alert.condition,
+      threshold: alert.threshold,
+      level: alert.level,
+      brandId: alert.brand.id
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleUpdateAlert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAlert) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.updateAlert(editingAlert.id, formData);
+      if (response.success) {
+        await fetchData(); // Refresh to get updated associations
+        setIsDialogOpen(false);
+        setEditingAlert(null);
+        setFormData({ name: '', description: '', condition: 'NEGATIVE_SENTIMENT_THRESHOLD', threshold: 0.5, level: 'MEDIUM', brandId: '' });
+      } else {
+        throw new Error(response.error?.message || 'Erreur lors de la mise à jour');
+      }
+    } catch (err: any) {
+      setError(err.error?.message || err.message || 'Erreur lors de la mise à jour de l\'alerte.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteAlert = async (alertId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette alerte ?')) return;
+
+    try {
+      const response = await apiClient.deleteAlert(alertId);
+      if (response.success) {
+        setAlerts(alerts.filter(a => a.id !== alertId));
+      } else {
+        throw new Error('Failed to delete alert');
+      }
+    } catch (err: any) {
+      console.error('Error deleting alert:', err);
+      setError('Erreur lors de la suppression de l\'alerte.');
+    }
+  };
+
   const getSeverityBadge = (level: string) => {
     switch (level) {
-      case 'CRITICAL': return <Badge variant="destructive shadow-sm">Critique</Badge>;
+      case 'CRITICAL': return <Badge variant="destructive" className="shadow-sm">Critique</Badge>;
       case 'HIGH': return <Badge className="bg-orange-500 text-white hover:bg-orange-600 border-none shadow-sm">Élevée</Badge>;
       case 'MEDIUM': return <Badge className="bg-yellow-500 text-white hover:bg-yellow-600 border-none shadow-sm">Moyenne</Badge>;
       default: return <Badge variant="secondary" className="shadow-sm">Faible</Badge>;
@@ -186,9 +240,11 @@ export default function AlertsPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Créer une règle d'alerte</DialogTitle>
+              <DialogTitle>
+                {editingAlert ? 'Modifier l\'alerte' : 'Créer une règle d\'alerte'}
+              </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreateAlert} className="space-y-4 py-4">
+            <form onSubmit={editingAlert ? handleUpdateAlert : handleCreateAlert} className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="brandId">Marque concernée *</Label>
                 <Select value={formData.brandId} onValueChange={(v) => setFormData({ ...formData, brandId: v })}>
@@ -254,10 +310,14 @@ export default function AlertsPage() {
               </div>
 
               <DialogFooter className="pt-4">
-                <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+                <Button type="button" variant="ghost" onClick={() => {
+                  setIsDialogOpen(false);
+                  setEditingAlert(null);
+                  setFormData({ name: '', description: '', condition: 'NEGATIVE_SENTIMENT_THRESHOLD', threshold: 0.5, level: 'MEDIUM', brandId: '' });
+                }}>Annuler</Button>
                 <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-blue-600 to-purple-600">
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                  Créer l'alerte
+                  {editingAlert ? 'Modifier' : 'Créer'} l'alerte
                 </Button>
               </DialogFooter>
             </form>
@@ -311,13 +371,16 @@ export default function AlertsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditAlert(alert)}>
                           <Edit2 className="w-4 h-4 mr-2" /> Modifier
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => alert('Historique non disponible pour le moment')}>
                           <Activity className="w-4 h-4 mr-2" /> Historique
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive font-medium">
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteAlert(alert.id)}
+                          className="text-destructive font-medium"
+                        >
                           <Trash2 className="w-4 h-4 mr-2" /> Supprimer
                         </DropdownMenuItem>
                       </DropdownMenuContent>

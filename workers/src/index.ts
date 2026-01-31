@@ -1,110 +1,99 @@
-import * as dotenv from 'dotenv';
-dotenv.config();
-import Redis from 'ioredis';
-import { scrapingProcessor } from './processors/scraping.processor';
-import { analysisProcessor } from './processors/analysis.processor';
-import { notificationsProcessor } from './processors/notifications.processor';
-import { reportsProcessor } from './processors/reports.processor';
-import { scrapingQueue, analysisQueue, notificationsQueue, reportsQueue } from './lib/queues';
-import { scheduleScrapingJobs } from './jobs/scheduled-scraping.job';
-import { setupMonitor } from './lib/monitor';
+import { Worker } from 'bullmq'
+import Redis from 'ioredis'
+import { scrapingProcessor } from './processors/scraping.processor'
+import { mentionProcessor } from './processors/mention.processor'
+import { scrapingScheduler } from './scheduler'
 
-import { PrismaClient } from '@sentinelle/database';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
-const redis = new Redis(REDIS_URL);
-const prisma = new PrismaClient();
+// Parse Redis URL
+const url = new URL(REDIS_URL);
+// Configuration Redis pour Docker
+const redisConfig = {
+  host: url.hostname, // Utilise directement le hostname (redis, localhost, etc.)
+  port: parseInt(url.port) || 6379,
+  password: url.password || undefined,
+  enableReadyCheck: false,
+  retryDelayOnFailover: 100,
+  maxRetriesPerRequest: null  // BullMQ nécessite null
+}
 
-console.log('🔧 Sentinelle Workers starting...');
-console.log(`📡 Redis URL: ${REDIS_URL}`);
-console.log(`📡 Database URL: ${process.env.DATABASE_URL ? 'Configured' : 'MISSING'}`);
+const redisConnection = new Redis(redisConfig)
 
-const checkConnections = async () => {
-  try {
-    await prisma.$connect();
-    console.log('✅ Database connected');
-    const sourceCount = await prisma.source.count();
-    console.log(`📊 Current sources in DB: ${sourceCount}`);
-  } catch (err) {
-    console.error('❌ Database connection failed:', err);
+console.log('🚀 Démarrage des Workers...')
+console.log('Redis connection:', { host: url.hostname, port: url.port })
+
+// Worker pour le scraping
+const scrapingWorker = new Worker('scraping', scrapingProcessor, {
+  connection: redisConnection,
+  concurrency: 5,
+  limiter: {
+    max: 10,
+    duration: 60000  // Max 10 jobs par minute
   }
-};
+})
 
-checkConnections();
+// Worker pour le traitement des mentions
+const mentionWorker = new Worker('mention', mentionProcessor, {
+  connection: redisConnection,
+  concurrency: 10
+})
 
-// Start monitoring UI
-setupMonitor();
+// Événements Scraping Worker
+scrapingWorker.on('completed', (job) => {
+  console.log(`✅ [SCRAPING] Job ${job.id} terminé`)
+})
 
-// Register processors
-// Note: We use named processors or a default one
-scrapingQueue.process('*', (job) => {
-  if (job.name === 'scheduled-scraping') {
-    return scheduleScrapingJobs();
-  }
-  return scrapingProcessor(job);
-});
+scrapingWorker.on('failed', (job, err) => {
+  console.error(`❌ [SCRAPING] Job ${job?.id} échoué:`, err.message)
+})
 
-analysisQueue.process(analysisProcessor);
-notificationsQueue.process(notificationsProcessor);
-reportsQueue.process(reportsProcessor);
+scrapingWorker.on('error', (err) => {
+  console.error('❌ [SCRAPING] Erreur worker:', err)
+})
 
-console.log('✅ Processors registered: scraping, analysis, notifications, reports');
+// Événements Mention Worker
+mentionWorker.on('completed', (job) => {
+  console.log(`✅ [MENTION] Job ${job.id} terminé`)
+})
 
-// Initialize scheduler
-const startScheduler = async () => {
-  console.log('📅 Initializing scheduler...');
+mentionWorker.on('failed', (job, err) => {
+  console.error(`❌ [MENTION] Job ${job?.id} échoué:`, err.message)
+})
 
-  // Clean existing repeatable jobs to avoid duplicates
-  const repeatableJobs = await scrapingQueue.getRepeatableJobs();
-  for (const job of repeatableJobs) {
-    if (job.name === 'scheduled-scraping') {
-      await scrapingQueue.removeRepeatableByKey(job.key);
-    }
-  }
+mentionWorker.on('error', (err) => {
+  console.error('❌ [MENTION] Erreur worker:', err)
+})
 
-  // Schedule scraping every hour
-  await scrapingQueue.add('scheduled-scraping', {}, {
-    repeat: { cron: '0 * * * *' },
-    removeOnComplete: true
-  });
+console.log('✅ Workers démarrés')
+console.log('📡 Scraping Worker: 5 concurrent jobs')
+console.log('📝 Mention Worker: 10 concurrent jobs')
 
-  // For dev/testing purposes, trigger an immediate run if requested or in dev
-  if (process.env.TRIGGER_INITIAL_SCRAPE === 'true') {
-    console.log('🚀 Triggering initial scraping run...');
-    await scheduleScrapingJobs();
-  }
-};
-
-startScheduler().catch(err => {
-  console.error('❌ Failed to start scheduler:', err);
-});
-
-// Health check
-const healthCheck = setInterval(() => {
-  console.log('⚡ Workers alive:', new Date().toISOString());
-}, 60000);
+// Démarrer le scheduler
+scrapingScheduler.start().catch((error) => {
+  console.error('❌ Erreur lors du démarrage du scheduler:', error)
+})
 
 // Graceful shutdown
 const shutdown = async () => {
-  console.log('👋 Workers shutting down...');
-  clearInterval(healthCheck);
+  console.log('⏳ Arrêt gracieux des workers...')
 
-  await scrapingQueue.close();
-  await analysisQueue.close();
-  await notificationsQueue.close();
-  await reportsQueue.close();
-  await redis.quit();
+  await scrapingScheduler.stop()
+  await scrapingWorker.close()
+  await mentionWorker.close()
+  await redisConnection.quit()
 
-  process.exit(0);
-};
+  console.log('✅ Workers arrêtés proprement')
+  process.exit(0)
+}
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-});
+  console.error('❌ Uncaught Exception:', error)
+})
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-});
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason)
+})

@@ -29,9 +29,8 @@ def create_app() -> FastAPI:
             except Exception as e:
                 print(f"Background model loading error: {e}")
 
-        # Run loading in a separate thread so it doesn't block the server startup
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, load_models)
+        # Load models synchronously to ensure they are available
+        load_models()
 
 
     # CORS

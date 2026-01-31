@@ -1,15 +1,3 @@
-const sources = [
-  { name: "Google", value: 70, color: "#4285F4" },
-  { name: "YouTube", value: 40, color: "#FF0000" },
-  { name: "Instagram", value: 60, color: "#E4405F" },
-  { name: "Pinterest", value: 30, color: "#E60023" },
-  { name: "Facebook", value: 80, color: "#1877F2" },
-  { name: "Twitter", value: 50, color: "#1DA1F2" },
-];
-
-const MAX_DOTS = 10;
-const VALUE_PER_DOT = 10;
-
 type Source = {
   name: string;
   value: number;

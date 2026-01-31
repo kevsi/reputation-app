@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service';
 import { logger } from '@/infrastructure/logger';
 import { AppError } from '@/shared/utils/errors';
+import { prisma } from '@/shared/database/prisma.client';
 
 class AuthController {
   /**
@@ -50,10 +51,41 @@ class AuthController {
         throw new AppError('Not authenticated', 401, 'NOT_AUTHENTICATED');
       }
 
-      // En production, récupérer l'utilisateur complet depuis la DB
+      // Récupérer l'utilisateur complet depuis la DB avec son organisation
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        include: {
+          organization: {
+            include: {
+              subscription: true
+            }
+          }
+        }
+      });
+
+      if (!user) {
+        throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+      }
+
       res.status(200).json({
         success: true,
-        data: req.user,
+        data: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          organizationId: user.organizationId,
+          isActive: user.isActive,
+          organization: user.organization ? {
+            id: user.organization.id,
+            name: user.organization.name,
+            slug: user.organization.slug,
+            subscription: user.organization.subscription ? {
+              plan: user.organization.subscription.plan,
+              status: user.organization.subscription.status
+            } : null
+          } : null
+        },
       });
     } catch (error) {
       logger.error('Error getting current user:', error);

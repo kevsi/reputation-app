@@ -90,8 +90,13 @@ class MentionsService {
         }
     }
 
-    async getAllMentions() {
+    async getAllMentions(organizationId: string) {
         return await prisma.mention.findMany({
+            where: {
+                brand: {
+                    organizationId: organizationId
+                }
+            },
             include: { source: true, brand: true },
             orderBy: { createdAt: 'desc' },
             take: 100
@@ -106,11 +111,26 @@ class MentionsService {
     }
 
     async createMention(input: CreateMentionInput) {
+        // Filtrer les champs undefined pour éviter les erreurs de type Prisma
+        const data: any = {
+            brandId: input.brandId,
+            sourceId: input.sourceId,
+            content: input.content,
+            platform: input.platform,
+            externalId: input.externalId,
+            publishedAt: input.publishedAt,
+            sentiment: input.sentiment as SentimentType
+        };
+
+        // Ajouter les champs optionnels seulement s'ils sont définis
+        if (input.url) data.url = input.url;
+        if (input.language) data.language = input.language;
+        if (input.author) data.author = input.author;
+        if (input.authorUrl) data.authorUrl = input.authorUrl;
+        if (input.sentimentScore !== undefined) data.sentimentScore = input.sentimentScore;
+
         return await prisma.mention.create({
-            data: {
-                ...input,
-                sentiment: input.sentiment as SentimentType
-            }
+            data
         });
     }
 

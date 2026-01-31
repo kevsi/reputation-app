@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { reportsService } from './reports.service';
-import { logger } from '@/infrastructure/logger';
+import { Logger } from '../../shared/logger';
 
 class ReportsController {
     async getAllReports(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -39,7 +39,7 @@ class ReportsController {
             const report = await reportsService.generateInstant(req.body);
             res.status(201).json({ success: true, data: report });
         } catch (error) {
-            logger.error('Error generating instant report:', error);
+            Logger.error('Erreur lors de la génération d\'un rapport instantané', error as Error, { composant: 'ReportsController', operation: 'generateInstant' });
             next(error);
         }
     }

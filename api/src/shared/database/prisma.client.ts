@@ -1,5 +1,5 @@
 import { PrismaClient } from '@sentinelle/database';
-import { logger } from '@/infrastructure/logger';
+import { Logger } from '../logger';
 
 // Créer une instance unique de PrismaClient
 const prismaClientSingleton = () => {
@@ -14,6 +14,7 @@ const prismaClientSingleton = () => {
 
 // Déclaration TypeScript pour globalThis
 declare global {
+  // eslint-disable-next-line no-var
   var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>;
 }
 
@@ -27,8 +28,8 @@ if (process.env.NODE_ENV !== 'production') {
 // Logger les requêtes en développement
 if (process.env.NODE_ENV === 'development') {
   prisma.$on('query' as never, (e: any) => {
-    logger.debug('Query: ' + e.query);
-    logger.debug('Duration: ' + e.duration + 'ms');
+    Logger.debug('Requête Prisma exécutée', { query: e.query });
+    Logger.debug('Durée de la requête Prisma', { durationMs: e.duration });
   });
 }
 

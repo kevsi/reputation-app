@@ -12,9 +12,19 @@ export enum Role {
 }
 
 export enum SourceType {
-    REDDIT = 'REDDIT',
     TWITTER = 'TWITTER',
-    DISCORD = 'DISCORD',
+    FACEBOOK = 'FACEBOOK',
+    INSTAGRAM = 'INSTAGRAM',
+    LINKEDIN = 'LINKEDIN',
+    GOOGLE_REVIEWS = 'GOOGLE_REVIEWS',
+    TRUSTPILOT = 'TRUSTPILOT',
+    TRIPADVISOR = 'TRIPADVISOR',
+    YOUTUBE = 'YOUTUBE',
+    REDDIT = 'REDDIT',
+    NEWS = 'NEWS',
+    BLOG = 'BLOG',
+    FORUM = 'FORUM',
+    RSS = 'RSS',
     OTHER = 'OTHER',
 }
 

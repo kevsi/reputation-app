@@ -1,3 +1,4 @@
+import { Logger } from '../../shared/logger';
 
 import { Request, Response } from 'express';
 import { prisma } from '../../shared/database/prisma.client';
@@ -34,7 +35,7 @@ export class SystemController {
             status.database = 'connected';
         } catch (error) {
             status.database = 'disconnected';
-            console.error('Database Check Error:', error);
+            Logger.error('Erreur lors du check de la base de données', error as Error, { composant: 'SystemController', operation: 'getStatus', service: 'database' });
         }
 
         // 2. Check Redis
@@ -48,7 +49,7 @@ export class SystemController {
             }
         } catch (error) {
             status.redis = 'disconnected';
-            console.error('Redis Check Error:', error);
+            Logger.error('Erreur lors du check Redis', error as Error, { composant: 'SystemController', operation: 'getStatus', service: 'redis' });
         }
 
         // 3. Check AI Service - Using native fetch (Node 18+)
@@ -66,7 +67,7 @@ export class SystemController {
             }
         } catch (error) {
             status.aiService = 'unreachable';
-            console.error('AI Service Check Error:', error);
+            Logger.error('Erreur lors du check du service IA', error as Error, { composant: 'SystemController', operation: 'getStatus', service: 'aiService' });
         }
 
         // 4. Check Workers

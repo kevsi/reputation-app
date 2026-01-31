@@ -3,9 +3,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 import { config } from './config/app';
 import { errorHandler, notFoundHandler } from '@/shared/middleware/error.middleware';
 import { logger } from './infrastructure/logger';
+import { prisma } from '@/shared/database/prisma.client';
 import sourcesRoutes from './modules/sources/sources.routes';
 import organizationsRoutes from './modules/organizations/organizations.routes'
 import alertsRoutes from './modules/alerts/alerts.routes'
@@ -19,6 +21,7 @@ import analyticsRoutes from './modules/analytics/analytics.routes';
 import authRoutes from './modules/auth/auth.routes';
 import billingRoutes from './modules/billing/billing.routes';
 import systemRoutes from './modules/system/system.routes';
+import notificationsRoutes from './modules/notifications/notifications.routes';
 
 
 
@@ -40,6 +43,22 @@ export const createApp = (): Application => {
 
   // Compression des réponses
   app.use(compression() as any);
+
+  // Rate limiting
+  const limiter = rateLimit({
+    windowMs: config.RATE_LIMIT_WINDOW_MS,
+    max: config.RATE_LIMIT_MAX_REQUESTS,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests, please try again later'
+      }
+    }
+  });
+  app.use(limiter);
 
   // Parse JSON bodies
   app.use(express.json({ limit: '10mb' }));
@@ -79,7 +98,27 @@ export const createApp = (): Application => {
     });
   });
 
-
+  // ===== PUBLIC DEMO ENDPOINT (no auth required) =====
+  app.get('/demo/mentions', async (_req: Request, res: Response) => {
+    try {
+      const mentions = await prisma.mention.findMany({
+        include: { brand: true, source: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      });
+      res.json({
+        success: true,
+        count: mentions.length,
+        message: 'Demo endpoint - mentions from database',
+        data: mentions
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
 
   // ===== API Routes =====
   const apiRouter = express.Router();
@@ -92,6 +131,7 @@ export const createApp = (): Application => {
       status: 'running',
     });
   });
+  // Temporarily commented out to debug startup issues
   apiRouter.use('/sources', sourcesRoutes);
   apiRouter.use('/organizations', organizationsRoutes)
   apiRouter.use('/alerts', alertsRoutes)
@@ -105,6 +145,7 @@ export const createApp = (): Application => {
   apiRouter.use('/auth', authRoutes)
   apiRouter.use('/billing', billingRoutes)
   apiRouter.use('/system', systemRoutes)
+  apiRouter.use('/notifications', notificationsRoutes)
 
   // Mount API routes
   app.use(`/api/${config.API_VERSION}`, apiRouter);

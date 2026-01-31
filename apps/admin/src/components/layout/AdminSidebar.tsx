@@ -36,7 +36,8 @@ const menuItems = [
       { icon: Building2, label: "Marques", path: "/admin/brands" },
       { icon: Database, label: "Sources de données", path: "/admin/sources" },
       { icon: Key, label: "Mots-clés & règles", path: "/admin/keywords" },
-      { icon: Bell, label: "Alertes", path: "/admin/alerts" }
+      { icon: Bell, label: "Alertes", path: "/admin/alerts" },
+      { icon: CheckCircle, label: "Actions", path: "/admin/actions" }
     ]
   },
   {

@@ -1,9 +1,17 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { OrganisationTableRow } from "@/components/organisations/OrganisationTableRow";
-import { Search, Plus, Loader2, AlertCircle } from "lucide-react";
+import { Search, Plus, Loader2, AlertCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 export default function OrganisationsPage() {
   const [organisations, setOrganisations] = useState<any[]>([]);
@@ -12,6 +20,8 @@ export default function OrganisationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [selectedOrg, setSelectedOrg] = useState<any | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
     fetchOrganisations();
@@ -33,6 +43,11 @@ export default function OrganisationsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleViewDetails = (org: any) => {
+    setSelectedOrg(org);
+    setIsDetailsOpen(true);
   };
 
   const filteredOrganisations = organisations.filter(org => {
@@ -152,7 +167,7 @@ export default function OrganisationsPage() {
                     users={org._count?.members || 0}
                     brands={org._count?.brands || 0}
                     status={org.subscription?.status === 'ACTIVE' ? "Actif" : "Suspendu"}
-                    onViewDetails={() => console.log("View details", org.id)}
+                    onViewDetails={() => handleViewDetails(org)}
                   />
                 ))
               )}
@@ -167,6 +182,63 @@ export default function OrganisationsPage() {
           Affichage de {filteredOrganisations.length} organisation(s) sur {organisations.length} au total
         </div>
       )}
+
+      {/* Organisation Details Dialog */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Détails de l'organisation
+            </DialogTitle>
+          </DialogHeader>
+          {selectedOrg && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="font-semibold text-lg">{selectedOrg.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Créée le {new Date(selectedOrg.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <Badge className="mb-2">
+                    {selectedOrg.subscription?.plan || 'FREE'}
+                  </Badge>
+                  <p className="text-sm">
+                    Statut: {selectedOrg.subscription?.status === 'ACTIVE' ? 'Actif' : 'Suspendu'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold">{selectedOrg._count?.members || 0}</div>
+                  <div className="text-sm text-muted-foreground">Utilisateurs</div>
+                </div>
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold">{selectedOrg._count?.brands || 0}</div>
+                  <div className="text-sm text-muted-foreground">Marques</div>
+                </div>
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold">0</div>
+                  <div className="text-sm text-muted-foreground">Mentions</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-medium">Informations supplémentaires</h4>
+                <div className="text-sm text-muted-foreground">
+                  <p>ID: {selectedOrg.id}</p>
+                  {selectedOrg.subscription && (
+                    <p>Abonnement: {selectedOrg.subscription.plan} - {selectedOrg.subscription.status}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -5,6 +5,9 @@ from typing import List, Dict
 import time
 import structlog
 from ..utils.exceptions import ModelLoadException
+from .model_state import set_keyword_loaded
+
+logger = structlog.get_logger()
 
 logger = structlog.get_logger()
 
@@ -16,6 +19,7 @@ class KeywordExtractor:
     _instance = None
     _nlp_fr = None
     _nlp_en = None
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -23,14 +27,16 @@ class KeywordExtractor:
         return cls._instance
 
     def initialize(self):
-        if self._nlp_fr is None:
+        if not self.__class__._initialized:
             try:
                 logger.info("Loading SpaCy models...")
                 # Assuming models are downloaded in Dockerfile
                 import fr_core_news_sm
                 import en_core_web_sm
-                self._nlp_fr = fr_core_news_sm.load()
-                self._nlp_en = en_core_web_sm.load()
+                self.__class__._nlp_fr = fr_core_news_sm.load()
+                self.__class__._nlp_en = en_core_web_sm.load()
+                self.__class__._initialized = True
+                set_keyword_loaded(True)
                 logger.info("SpaCy models loaded.")
             except ImportError as e:
                 logger.error("SpaCy models not found", error=str(e))
@@ -38,11 +44,11 @@ class KeywordExtractor:
 
     def _get_nlp_model(self, lang: str):
         if lang == 'fr':
-            return self._nlp_fr
-        return self._nlp_en # Default to English
+            return self.__class__._nlp_fr
+        return self.__class__._nlp_en # Default to English
 
     def extract(self, text: str, max_keywords: int = 10, lang: str = "fr") -> Dict:
-        if self._nlp_fr is None:
+        if not self.__class__._initialized:
             self.initialize()
 
         start = time.time()

@@ -22,7 +22,7 @@ class ActionsService {
                 title: input.title || `Action ${input.type || ''}`,
                 description: input.description || input.details,
                 status: (input.status as ActionStatus) || 'PENDING',
-                priority: input.priority || 0,
+                priority: input.priority || 2,
                 assignedToId: input.assignedToId || input.userId,
                 dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
                 notes: input.notes,

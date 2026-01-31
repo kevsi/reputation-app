@@ -2,6 +2,7 @@
 
 import { Router } from 'express';
 import { sourcesController } from './sources.controller';
+import { requireAuth } from '@/shared/middleware/auth.middleware';
 
 /**
  * 🛣️ Routes Sources
@@ -9,6 +10,9 @@ import { sourcesController } from './sources.controller';
  * Définit toutes les routes HTTP pour les sources
  */
 const router = Router();
+
+// Toutes les routes nécessitent une authentification
+router.use(requireAuth);
 
 /**
  * GET /api/v1/sources
@@ -21,9 +25,14 @@ router.get('/', sourcesController.getAllSources.bind(sourcesController));
  * Récupère uniquement les sources actives
  * 
  * ⚠️ IMPORTANT : Cette route doit être AVANT /:id
- * Sinon "active" serait interprété comme un ID
  */
 router.get('/active', sourcesController.getActiveSources.bind(sourcesController));
+
+/**
+ * POST /api/v1/sources/test
+ * Teste la connexion à une plateforme
+ */
+router.post('/test', sourcesController.testConnection.bind(sourcesController));
 
 /**
  * GET /api/v1/sources/:id
@@ -33,21 +42,27 @@ router.get('/:id', sourcesController.getSourceById.bind(sourcesController));
 
 /**
  * POST /api/v1/sources/:id/scrape-now
- * Déclenche un scraping immédiat (enqueue un job côté workers)
+ * Déclenche un scraping immédiat
  */
 router.post('/:id/scrape-now', sourcesController.scrapeNow.bind(sourcesController));
 
 /**
  * POST /api/v1/sources
- * Crée une nouvelle source
+ * Crée une nouvelle source avec validation credentials
  */
 router.post('/', sourcesController.createSource.bind(sourcesController));
 
 /**
  * PATCH /api/v1/sources/:id
- * Met à jour une source existante (partiellement)
+ * Met à jour une source
  */
 router.patch('/:id', sourcesController.updateSource.bind(sourcesController));
+
+/**
+ * DELETE /api/v1/sources/:id
+ * Supprime une source
+ */
+router.delete('/:id', sourcesController.deleteSource.bind(sourcesController));
 
 /**
  * DELETE /api/v1/sources/:id

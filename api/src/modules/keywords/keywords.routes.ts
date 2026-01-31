@@ -1,15 +1,19 @@
 
 import { Router } from 'express';
 import { keywordsController } from './keywords.controller';
-import { validate } from '../../shared/middleware/validate.middleware';
-import { createKeywordSchema, updateKeywordSchema } from './keywords.validation';
+import { requireAuth } from '../../shared/middleware/auth.middleware';
 
 const router = Router();
 
-router.get('/', keywordsController.getAllKeywords.bind(keywordsController));
-router.get('/:id', keywordsController.getKeywordById.bind(keywordsController));
-router.post('/', validate(createKeywordSchema), keywordsController.createKeyword.bind(keywordsController));
-router.patch('/:id', validate(updateKeywordSchema), keywordsController.updateKeyword.bind(keywordsController));
-router.delete('/:id', keywordsController.deleteKeyword.bind(keywordsController));
+// Toutes les routes nécessitent une authentification
+router.use(requireAuth);
+
+// Routes pour les mots-clés d'une marque spécifique
+router.get('/brand/:brandId', keywordsController.getKeywordsByBrand.bind(keywordsController));
+router.post('/brand/:brandId', keywordsController.addKeywordToBrand.bind(keywordsController));
+router.delete('/brand/:brandId', keywordsController.removeKeywordFromBrand.bind(keywordsController));
+
+// Route générale pour créer un mot-clé (avec brandId dans le body)
+router.post('/', keywordsController.createKeyword.bind(keywordsController));
 
 export default router;

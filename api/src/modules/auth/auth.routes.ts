@@ -67,10 +67,6 @@ router.post(
   authController.logout.bind(authController)
 );
 
-/**
- * GET /api/v1/auth/me
- * Récupère le profil de l'utilisateur connecté
- */
 router.get(
   '/me',
   requireAuth,

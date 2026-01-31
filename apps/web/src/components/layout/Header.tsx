@@ -1,5 +1,6 @@
 import { Sun, Moon, Clock, Bell, Menu, Search, PanelRightOpen } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { BrandSelector } from "./BrandSelector";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -22,37 +23,19 @@ export function Header({ onMenuClick, onRightSidebarClick, rightSidebarCollapsed
           <Menu className="w-4 h-4 text-foreground" />
         </button>
         
-        {/* Breadcrumb */}
+        {/* Brand Selector */}
         <div className="hidden sm:flex items-center gap-2 ml-2">
           <button className="px-3 py-1 rounded-2xl hover:bg-accent transition-colors">
             <span className="text-sm text-muted-foreground">Dashboard</span>
           </button>
           <span className="text-sm text-muted-foreground opacity-40">/</span>
-          <button className="px-3 py-1 rounded-2xl hover:bg-accent transition-colors">
-            <span className="text-sm text-foreground">Iphone X</span>
-          </button>
+          <BrandSelector />
         </div>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-5">
-        {/* Search - Caché sur mobile */}
-        <div className="hidden md:flex items-center gap-2 bg-muted rounded-2xl px-2 py-1">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search"
-            className="bg-transparent text-sm text-foreground outline-none w-24 placeholder:text-muted-foreground"
-          />
-          <div className="w-5 h-4 border border-border rounded flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">/</span>
-          </div>
-        </div>
-
-        {/* Search mobile */}
-        <button className="md:hidden w-7 h-7 flex items-center justify-center rounded-2xl hover:bg-accent transition-colors">
-          <Search className="w-4 h-4 text-foreground" />
-        </button>
+        
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">

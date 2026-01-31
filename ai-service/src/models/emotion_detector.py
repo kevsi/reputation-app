@@ -5,6 +5,9 @@ import time
 import structlog
 from ..config.settings import settings
 from ..utils.exceptions import ModelLoadException
+from .model_state import set_emotion_loaded
+
+logger = structlog.get_logger()
 
 logger = structlog.get_logger()
 
@@ -13,6 +16,7 @@ class EmotionDetector:
     
     _instance = None
     _model = None
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -20,30 +24,32 @@ class EmotionDetector:
         return cls._instance
 
     def initialize(self):
-        if self._model is None:
+        if not self.__class__._initialized:
             try:
                 logger.info("Loading Emotion Model...", model=settings.EMOTION_MODEL)
                 device = 0 if settings.USE_GPU else -1
-                self._model = pipeline(
+                self.__class__._model = pipeline(
                     "text-classification",
                     model=settings.EMOTION_MODEL,
                     device=device,
                     top_k=None
                 )
+                self.__class__._initialized = True
+                set_emotion_loaded(True)
                 logger.info("Emotion Model loaded successfully")
             except Exception as e:
                 logger.error("Failed to load emotion model", error=str(e))
                 raise ModelLoadException("EmotionDetector", str(e))
 
     def analyze(self, text: str) -> Dict:
-        if self._model is None:
+        if not self.__class__._initialized:
             self.initialize()
 
         start = time.time()
         truncated_text = text[:2000]
 
         try:
-            results = self._model(truncated_text)[0]
+            results = self.__class__._model(truncated_text)[0]
             # results: [{'label': 'joy', 'score': 0.9}, {'label': 'anger', 'score': 0.05}, ...]
             
             emotions_map = {item['label']: item['score'] for item in results}

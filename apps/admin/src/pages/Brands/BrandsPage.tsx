@@ -55,6 +55,7 @@ export default function BrandsPage() {
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -116,6 +117,57 @@ export default function BrandsPage() {
         }
     };
 
+    const handleEditBrand = (brand: Brand) => {
+        setEditingBrand(brand);
+        setFormData({
+            name: brand.name,
+            description: brand.description || '',
+            website: brand.website || '',
+            logo: brand.logo || ''
+        });
+        setIsDialogOpen(true);
+    };
+
+    const handleUpdateBrand = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingBrand) return;
+
+        setIsSubmitting(true);
+        setError(null);
+
+        try {
+            const response = await apiClient.updateBrand(editingBrand.id, formData);
+            if (response.success) {
+                setBrands(brands.map(b => b.id === editingBrand.id ? { ...b, ...formData } : b));
+                setIsDialogOpen(false);
+                setEditingBrand(null);
+                setFormData({ name: '', description: '', website: '', logo: '' });
+            } else {
+                throw new Error(response.error?.message || 'Erreur lors de la mise à jour');
+            }
+        } catch (err: any) {
+            setError(err.error?.message || err.message || 'Erreur lors de la mise à jour de la marque.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteBrand = async (brandId: string) => {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette marque ?')) return;
+
+        try {
+            const response = await apiClient.deleteBrand(brandId);
+            if (response.success) {
+                setBrands(brands.filter(b => b.id !== brandId));
+            } else {
+                throw new Error('Failed to delete brand');
+            }
+        } catch (err: any) {
+            console.error('Error deleting brand:', err);
+            setError('Erreur lors de la suppression de la marque.');
+        }
+    };
+
     const filteredBrands = brands.filter(brand =>
         brand.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         brand.description?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -141,9 +193,11 @@ export default function BrandsPage() {
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[500px]">
                         <DialogHeader>
-                            <DialogTitle>Ajouter une nouvelle marque</DialogTitle>
+                            <DialogTitle>
+                                {editingBrand ? 'Modifier la marque' : 'Ajouter une nouvelle marque'}
+                            </DialogTitle>
                         </DialogHeader>
-                        <form onSubmit={handleCreateBrand} className="space-y-4 py-4">
+                        <form onSubmit={editingBrand ? handleUpdateBrand : handleCreateBrand} className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Nom de la marque *</Label>
                                 <Input
@@ -185,10 +239,14 @@ export default function BrandsPage() {
                                 />
                             </div>
                             <DialogFooter className="pt-4">
-                                <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+                                <Button type="button" variant="ghost" onClick={() => {
+                                    setIsDialogOpen(false);
+                                    setEditingBrand(null);
+                                    setFormData({ name: '', description: '', website: '', logo: '' });
+                                }}>Annuler</Button>
                                 <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-blue-600 to-purple-600">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                                    Créer la marque
+                                    {editingBrand ? 'Modifier' : 'Créer'} la marque
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -256,10 +314,13 @@ export default function BrandsPage() {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleEditBrand(brand)}>
                                                     <Edit2 className="w-4 h-4 mr-2" /> Modifier
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive">
+                                                <DropdownMenuItem
+                                                    onClick={() => handleDeleteBrand(brand.id)}
+                                                    className="text-destructive"
+                                                >
                                                     <Trash2 className="w-4 h-4 mr-2" /> Supprimer
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>

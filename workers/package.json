@@ -6,6 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "scrape": "tsx trigger-scraping.ts",
     "postinstall": "echo 'Skipping Chromium download'"
   },
   "dependencies": {
@@ -14,15 +15,20 @@
     "@sentinelle/database": "*",
     "@types/express": "^5.0.6",
     "axios": "^1.7.9",
-    "bull": "^4.16.3",
+    "bullmq": "^5.40.1",
+    "chalk": "^5.3.0",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "ioredis": "^5.4.1",
-    "puppeteer-core": "^23.11.1"
+    "node-cron": "^3.0.3",
+    "puppeteer-core": "^23.11.1",
+    "twitter-api-v2": "^1.18.2"
   },
   "devDependencies": {
+    "@types/chalk": "^2.2.0",
     "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.3",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },

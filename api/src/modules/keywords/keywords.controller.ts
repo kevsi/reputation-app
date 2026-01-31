@@ -3,9 +3,10 @@ import { keywordsService } from './keywords.service';
 import { logger } from '@/infrastructure/logger';
 
 class KeywordsController {
-    async getAllKeywords(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    async getKeywordsByBrand(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const keywords = await keywordsService.getAllKeywords();
+            const { brandId } = req.params;
+            const keywords = await keywordsService.getKeywordsByBrand(brandId);
             res.status(200).json({
                 success: true,
                 data: keywords,
@@ -18,15 +19,54 @@ class KeywordsController {
         }
     }
 
-    async getKeywordById(req: Request, res: Response, next: NextFunction): Promise<void> {
+    async addKeywordToBrand(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { id } = req.params;
-            const keyword = await keywordsService.getKeywordById(id);
-            if (!keyword) {
-                res.status(404).json({ success: false, message: 'Keyword not found' });
+            const { brandId } = req.params;
+            const { word } = req.body;
+
+            if (!word || typeof word !== 'string') {
+                res.status(400).json({ success: false, message: 'Keyword is required and must be a string' });
                 return;
             }
-            res.status(200).json({ success: true, data: keyword });
+
+            const updatedBrand = await keywordsService.addKeywordToBrand(brandId, word);
+            res.status(201).json({ success: true, data: updatedBrand });
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async removeKeywordFromBrand(req: Request, res: Response, next: NextFunction): Promise<void> {
+        try {
+            const { brandId } = req.params;
+            const { word } = req.body;
+
+            if (!word || typeof word !== 'string') {
+                res.status(400).json({ success: false, message: 'Keyword is required and must be a string' });
+                return;
+            }
+
+            const updatedBrand = await keywordsService.removeKeywordFromBrand(brandId, word);
+            res.status(200).json({ success: true, data: updatedBrand });
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async updateBrandKeywords(req: Request, res: Response, next: NextFunction): Promise<void> {
+        try {
+            const { brandId } = req.params;
+            const { keywords } = req.body;
+
+            if (!Array.isArray(keywords)) {
+                res.status(400).json({ success: false, message: 'Keywords must be an array of strings' });
+                return;
+            }
+
+            const updatedBrand = await keywordsService.updateBrandKeywords(brandId, keywords);
+            res.status(200).json({ success: true, data: updatedBrand });
             return;
         } catch (error) {
             next(error);
@@ -35,38 +75,15 @@ class KeywordsController {
 
     async createKeyword(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const newKeyword = await keywordsService.createKeyword(req.body);
-            res.status(201).json({ success: true, data: newKeyword });
-            return;
-        } catch (error) {
-            next(error);
-        }
-    }
+            const { brandId, word } = req.body;
 
-    async updateKeyword(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            const { id } = req.params;
-            const updatedKeyword = await keywordsService.updateKeyword(id, req.body);
-            if (!updatedKeyword) {
-                res.status(404).json({ success: false, message: 'Keyword not found' });
+            if (!brandId || !word || typeof word !== 'string') {
+                res.status(400).json({ success: false, message: 'brandId and word are required, word must be a string' });
                 return;
             }
-            res.status(200).json({ success: true, data: updatedKeyword });
-            return;
-        } catch (error) {
-            next(error);
-        }
-    }
 
-    async deleteKeyword(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            const { id } = req.params;
-            const deleted = await keywordsService.deleteKeyword(id);
-            if (!deleted) {
-                res.status(404).json({ success: false, message: 'Keyword not found' });
-                return;
-            }
-            res.status(200).json({ success: true, message: 'Keyword deleted successfully' });
+            const updatedBrand = await keywordsService.addKeywordToBrand(brandId, word);
+            res.status(201).json({ success: true, data: updatedBrand });
             return;
         } catch (error) {
             next(error);

@@ -16,7 +16,7 @@ interface AlertCardProps {
 }
 
 export function AlertCard({
-  id,
+  id: _id,
   type,
   title,
   description,

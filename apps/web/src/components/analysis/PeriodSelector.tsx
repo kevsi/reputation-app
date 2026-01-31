@@ -1,4 +1,4 @@
-import { Calendar, ChevronDown } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { useState } from "react";
 
 interface PeriodSelectorProps {
@@ -7,7 +7,7 @@ interface PeriodSelectorProps {
 
 export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
   const [selectedPeriod, setSelectedPeriod] = useState("30j");
-  const [lastUpdate, setLastUpdate] = useState("Il y a 5 minutes");
+  const [lastUpdate] = useState("Il y a 5 minutes");
 
   const periods = [
     { value: "7j", label: "7 derniers jours" },

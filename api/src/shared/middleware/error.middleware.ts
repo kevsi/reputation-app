@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../utils/errors';
 import { ApiResponse } from '../utils/api-response';
-import { logger } from '../../infrastructure/logger';
+import { Logger } from '../../shared/logger';
 
 /**
  * Middleware de gestion globale des erreurs
@@ -14,9 +14,9 @@ export const errorHandler = (
   _next: NextFunction
 ): void => {
   // Log de l'erreur
-  logger.error('Error caught by error handler', {
-    error: err.message,
-    stack: err.stack,
+  Logger.error('Erreur capturée par le gestionnaire global', err, {
+    composant: 'ErrorMiddleware',
+    operation: 'errorHandler',
     path: req.path,
     method: req.method,
   });

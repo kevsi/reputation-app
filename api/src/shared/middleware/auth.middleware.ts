@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { jwtService, JwtPayload } from '@/modules/auth/jwt.service';
 import { AppError } from '@/shared/utils/errors';
-import { logger } from '@/infrastructure/logger';
+import { Logger } from '../../shared/logger';
+import { prisma } from '@/shared/database/prisma.client';
 
 // Étendre l'interface Request pour inclure user
 declare global {
+    // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace Express {
         interface Request {
             user?: JwtPayload;
@@ -35,8 +37,23 @@ export const requireAuth = async (
         // Vérifier le token
         const payload = jwtService.verifyToken(token);
 
-        // Attacher les informations utilisateur à la requête
-        req.user = payload;
+        // Récupérer l'utilisateur actuel depuis la base de données pour avoir les données à jour
+        const user = await prisma.user.findUnique({
+            where: { id: payload.userId },
+            include: { organization: true }
+        });
+
+        if (!user) {
+            throw new AppError('User not found', 401, 'USER_NOT_FOUND');
+        }
+
+        // Attacher les informations utilisateur à la requête (avec les données à jour)
+        req.user = {
+            userId: user.id,
+            email: user.email,
+            organizationId: user.organizationId,
+            role: user.role,
+        };
 
         next();
     } catch (error) {
@@ -53,7 +70,7 @@ export const requireAuth = async (
             }
         }
 
-        logger.error('Auth middleware error', error);
+        Logger.error('Erreur dans le middleware d\'authentification', error as Error, { composant: 'AuthMiddleware', operation: 'requireAuth' });
         next(new AppError('Authentication failed', 401, 'AUTH_FAILED'));
     }
 };

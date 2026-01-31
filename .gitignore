@@ -7,3 +7,8 @@ dist/
 .DS_Store
 venv/
 __pycache__/
+
+# Package managers
+pnpm-lock.yaml
+yarn.lock
+

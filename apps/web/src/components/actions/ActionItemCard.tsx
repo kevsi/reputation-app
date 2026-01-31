@@ -1,4 +1,4 @@
-import { MessageCircle, Eye, Clock, User } from "lucide-react";
+import { Eye, Clock, User } from "lucide-react";
 
 interface ActionItemCardProps {
   id: string;
@@ -14,7 +14,7 @@ interface ActionItemCardProps {
 }
 
 export function ActionItemCard({
-  id,
+  id: _id,
   title,
   platform,
   priority,

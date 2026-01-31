@@ -1,77 +1,233 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { MentionCard } from "@/components/mentions/MentionCard";
-import { Search, Filter, Download, Loader2 } from "lucide-react";
+import { Search, Filter, Download, Loader2, AlertCircle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBrand } from "@/contexts/BrandContext";
+import { useBrandListener } from "@/hooks/useBrandListener";
+import { usePlan } from "@/hooks/usePlan";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { MentionDetail } from "@/types/api";
+import { isApiError } from "@/types/http";
+import { ApiErrorHandler } from "@/lib/api-error-handler";
 
-const filters = [
-  { label: "Tous", value: "all", count: undefined },
-  { label: "Nouveaux", value: "new", count: undefined },
-  { label: "Positif", value: "positive", count: undefined },
-  { label: "Négatif", value: "negative", count: undefined },
-  { label: "Surveillés", value: "monitored", count: undefined },
-  { label: "Traités", value: "treated", count: undefined }
+// Types
+interface MappedMention {
+  id: string;
+  author: string;
+  avatar: string;
+  timestamp: string;
+  content: string;
+  platform: string;
+  url?: string;
+  sentiment: {
+    type: string;
+    score: string;
+  };
+  tags: string[];
+  actions: {
+    treated?: boolean;
+    ignored?: boolean;
+    monitored?: boolean;
+    alert?: boolean;
+  };
+}
+
+interface FilterOption {
+  label: string;
+  value: string;
+  count?: number;
+}
+
+interface MentionStats {
+  total: number;
+  positive: number;
+  negative: number;
+}
+
+const filters: FilterOption[] = [
+  { label: "Tous", value: "all" },
+  { label: "Nouveaux", value: "new" },
+  { label: "Positif", value: "positive" },
+  { label: "Négatif", value: "negative" },
+  { label: "Surveillés", value: "monitored" },
+  { label: "Traités", value: "treated" }
 ];
 
 export default function MentionsPage() {
   const { user } = useAuth();
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mentions, setMentions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { brandId: urlBrandId } = useParams<{ brandId: string }>();
+  const navigate = useNavigate();
+  const { brands, selectedBrand, setSelectedBrand } = useBrand();
+  const { plan, hasFeature } = usePlan();
+  const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [mentions, setMentions] = useState<MappedMention[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Synchronisation entre URL et Context
   useEffect(() => {
-    const fetchMentions = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Build query params based on filters
-        const params: any = {};
-        if (activeFilter === "positive") params.sentiment = "Positive";
-        if (activeFilter === "negative") params.sentiment = "Negative";
-        // 'new', 'monitored', 'treated' would require backend support or client-side filtering
-
-        const response: any = await apiClient.getMentions(params); // Adjust if getMentions returns { data: [] } or just []
-        const data = Array.isArray(response) ? response : (response.data || []);
-        setMentions(data);
-      } catch (err) {
-        console.error("Failed to fetch mentions", err);
-        setError("Impossible de charger les mentions.");
-      } finally {
-        setLoading(false);
+    if (urlBrandId && brands.length > 0) {
+      const brandFromUrl = brands.find(b => b.id === urlBrandId);
+      if (brandFromUrl && (!selectedBrand || selectedBrand.id !== urlBrandId)) {
+        setSelectedBrand(brandFromUrl);
+      } else if (!brandFromUrl && selectedBrand) {
+        // Si le brand de l'URL est invalide, on remet le bon URL basé sur le context
+        navigate(`/mentions/${selectedBrand.id}`, { replace: true });
       }
+    }
+  }, [urlBrandId, brands, selectedBrand, setSelectedBrand, navigate]);
+
+  // Safe data transformation
+  const transformMention = useCallback((mention: MentionDetail): MappedMention => {
+    const platformMap: Record<string, string> = {
+      TWITTER: 'Twitter',
+      FACEBOOK: 'Facebook',
+      INSTAGRAM: 'Instagram',
+      LINKEDIN: 'LinkedIn',
+      GOOGLE_REVIEWS: 'Google Reviews',
+      TRUSTPILOT: 'Trustpilot',
+      TRIPADVISOR: 'TripAdvisor',
+      YOUTUBE: 'YouTube',
+      REDDIT: 'Reddit'
     };
 
-    fetchMentions();
-  }, [activeFilter, user]);
+    const sentimentMap: Record<string, string> = {
+      POSITIVE: 'Positive',
+      NEGATIVE: 'Negative',
+      NEUTRAL: 'Neutral',
+      MIXED: 'Mixed'
+    };
 
-  // Client-side mapping
-  const mappedMentions = mentions.map((mention: any) => ({
-    id: mention.id,
-    author: mention.author || "Unknown",
-    avatar: (mention.author || "U").substring(0, 2).toUpperCase(),
-    timestamp: mention.createdAt ? formatDistanceToNow(new Date(mention.createdAt), { addSuffix: true, locale: fr }) : "",
-    content: mention.content,
-    platform: mention.source || "Web",
-    sentiment: {
-      type: mention.sentiment || "Neutral",
-      score: mention.sentimentScore ? `${Math.round(mention.sentimentScore * 100)}%` : "N/A"
-    },
-    tags: [], // Add tags if available in API
-    actions: {
-      treated: mention.status === 'TREATED',
-      // map other statuses
+    let score: string = '0%';
+    if (typeof mention.sentimentScore === 'number') {
+      score = Math.round(Math.max(0, Math.min(mention.sentimentScore, 1)) * 100) + '%';
+    } else if (typeof mention.sentimentScore === 'string') {
+      score = mention.sentimentScore.includes('%') ? mention.sentimentScore : mention.sentimentScore + '%';
     }
-  }));
 
-  // Client-side filtering for demonstration if fields are missing in backend filter
-  const displayedMentions = mappedMentions.filter((m: any) => {
-    if (searchQuery && !m.content.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
+    const tags: string[] = Array.isArray(mention.detectedKeywords) ? mention.detectedKeywords : [];
+    const authorName = typeof mention.author === 'string' && mention.author.length > 0 ? mention.author : 'Anonyme';
+
+    return {
+      id: mention.id ?? '',
+      author: authorName,
+      avatar: (authorName?.[0]?.toUpperCase() || 'A').substring(0, 2).toUpperCase(),
+      timestamp: mention.publishedAt ? formatDistanceToNow(new Date(mention.publishedAt), { locale: fr, addSuffix: true }) : 'Date inconnue',
+      content: mention.content ?? '',
+      platform: platformMap[mention.source?.type ?? ''] ?? 'Autres',
+      url: mention.url,
+      sentiment: { type: sentimentMap[mention.sentiment] ?? 'Neutre', score },
+      tags,
+      actions: {
+        treated: mention.status === 'TREATED',
+        ignored: mention.status === 'IGNORED',
+        monitored: mention.status === 'MONITORED',
+        alert: false
+      }
+    };
+  }, []);
+
+  // Fonction pour charger les mentions
+  const fetchMentions = useCallback(async () => {
+    const effectiveBrandId = urlBrandId || selectedBrand?.id;
+
+    if (!effectiveBrandId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, unknown> = {
+        brandId: effectiveBrandId
+      };
+      if (activeFilter === "positive") params.sentiment = "POSITIVE";
+      if (activeFilter === "negative") params.sentiment = "NEGATIVE";
+
+      const response = await apiClient.getMentions(params);
+
+      if (isApiError(response)) {
+        const userMsg = ApiErrorHandler.getUserMessage(response.error);
+        setError(`${userMsg} (${response.error.code})`);
+        setMentions([]);
+        return;
+      }
+
+      let rawData: MentionDetail[] = [];
+      const data: any = response.data;
+      if (Array.isArray(data)) {
+        rawData = data;
+      } else if (data && Array.isArray(data.mentions)) {
+        rawData = data.mentions;
+      } else if (data && Array.isArray(data.items)) {
+        rawData = data.items;
+      }
+      const mappedData: MappedMention[] = rawData.map(transformMention);
+      setMentions(mappedData);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Impossible de charger les mentions';
+      setError(errorMsg);
+      console.error('Mentions fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [urlBrandId, selectedBrand?.id, activeFilter, transformMention]);
+
+  useEffect(() => {
+    fetchMentions();
+  }, [fetchMentions]);
+
+  useBrandListener(async () => {
+    if (selectedBrand && selectedBrand.id !== urlBrandId) {
+      navigate(`/mentions/${selectedBrand.id}`);
+    } else {
+      await fetchMentions();
+    }
   });
+
+  // Client-side filtering and search
+  const displayedMentions = useMemo(() => {
+    let filtered = mentions;
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(mention =>
+        mention.content.toLowerCase().includes(query) ||
+        mention.author.toLowerCase().includes(query) ||
+        mention.tags.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    if (activeFilter === "new") {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      filtered = filtered.filter(mention => {
+        try {
+          return new Date(mention.timestamp) > oneDayAgo;
+        } catch {
+          return false;
+        }
+      });
+    } else if (activeFilter === "monitored") {
+      filtered = filtered.filter(mention => mention.actions.monitored);
+    } else if (activeFilter === "treated") {
+      filtered = filtered.filter(mention => mention.actions.treated);
+    }
+
+    return filtered;
+  }, [mentions, searchQuery, activeFilter]);
+
+  // Calculate stats
+  const stats: MentionStats = useMemo(() => {
+    const total = displayedMentions.length;
+    const positive = displayedMentions.filter(m => m.sentiment.type === 'Positive').length;
+    const negative = displayedMentions.filter(m => m.sentiment.type === 'Negative').length;
+    return { total, positive, negative };
+  }, [displayedMentions]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
@@ -81,10 +237,10 @@ export default function MentionsPage() {
           <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                Mentions
+                Mentions - {user?.organization?.name || 'Votre organisation'}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Toutes les mentions de votre marque sur les réseaux sociaux
+                Toutes les mentions de votre marque sur les réseaux sociaux • Plan {plan}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -92,10 +248,12 @@ export default function MentionsPage() {
                 <Filter className="w-4 h-4" />
                 Filtres avancés
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-                <Download className="w-4 h-4" />
-                Exporter
-              </button>
+              {hasFeature('basic_reports') && (
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+                  <Download className="w-4 h-4" />
+                  Exporter
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -135,23 +293,19 @@ export default function MentionsPage() {
           </div>
         </div>
 
-        {/* Stats Cards - Placeholder for now, could fetch stats separately */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-4">
             <div className="text-xs text-muted-foreground mb-1">Total affiché</div>
-            <div className="text-3xl font-bold text-foreground">{displayedMentions.length}</div>
+            <div className="text-3xl font-bold text-foreground">{stats.total}</div>
           </div>
           <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-xl p-4">
             <div className="text-xs text-muted-foreground mb-1">Mentions positives</div>
-            <div className="text-3xl font-bold text-foreground">
-              {displayedMentions.filter((m: any) => m.sentiment.type === 'Positive').length}
-            </div>
+            <div className="text-3xl font-bold text-foreground">{stats.positive}</div>
           </div>
           <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl p-4">
             <div className="text-xs text-muted-foreground mb-1">Mentions négatives</div>
-            <div className="text-3xl font-bold text-foreground">
-              {displayedMentions.filter((m: any) => m.sentiment.type === 'Negative').length}
-            </div>
+            <div className="text-3xl font-bold text-foreground">{stats.negative}</div>
           </div>
         </div>
 
@@ -165,8 +319,17 @@ export default function MentionsPage() {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : error ? (
-            <div className="text-center py-12 text-red-500">
-              {error}
+            <div className="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg text-sm text-red-800 dark:text-red-300">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold">{error}</p>
+                <button
+                  onClick={() => fetchMentions()}
+                  className="mt-2 text-sm underline hover:no-underline"
+                >
+                  Réessayer
+                </button>
+              </div>
             </div>
           ) : displayedMentions.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -174,7 +337,7 @@ export default function MentionsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {displayedMentions.map((mention: any) => (
+              {displayedMentions.map((mention) => (
                 <MentionCard key={mention.id} {...mention} />
               ))}
             </div>

@@ -1,7 +1,5 @@
-import { Job } from 'bull';
-import { PrismaClient } from '@sentinelle/database';
-
-const prisma = new PrismaClient();
+import { Job } from 'bullmq';
+import { prisma } from '../config/database';
 
 export const reportsProcessor = async (job: Job) => {
     const { brandId, reportId } = job.data;

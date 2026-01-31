@@ -1,5 +1,6 @@
 import { PrismaClient } from '@sentinelle/database';
 import { scrapingQueue } from '../lib/queues';
+import { validateSourceBeforeScraping } from '../lib/forbidden-domains';
 
 const prisma = new PrismaClient();
 
@@ -27,11 +28,19 @@ export const scheduleScrapingJobs = async () => {
         console.log(`📡 Found ${activeSources.length} active sources, ${dueSources.length} due to scrape`);
 
         for (const source of dueSources) {
+            // 🚫 Vérifier que la source n'est pas interdite
+            const configUrl = (source.config as any)?.url as string | undefined;
+            const validation = validateSourceBeforeScraping(source.type, configUrl);
+            if (!validation.valid) {
+                console.warn(`🚫 SKIPPING FORBIDDEN SOURCE: ${source.name} (${source.id}) - Reason: ${validation.reason}`);
+                continue;
+            }
+
             console.log(`📡 Attempting to queue scraping for: ${source.name} (ID: ${source.id})`);
 
-            const job = await scrapingQueue.add({
+            const job = await scrapingQueue.add('scrape-source', {
                 sourceId: source.id,
-                url: source.url,
+                url: configUrl,
                 brandId: source.brandId,
                 type: source.type
             }, {

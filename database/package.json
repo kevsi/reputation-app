@@ -6,10 +6,12 @@
     "scripts": {
         "build": "tsc",
         "db:generate": "prisma generate",
-        "db:push": "prisma db push"
+        "db:push": "prisma db push",
+        "setup:sources": "tsx setup-active-sources.ts"
     },
     "dependencies": {
-        "@prisma/client": "^5.22.0"
+        "@prisma/client": "^5.22.0",
+        "pg": "^8.17.2"
     },
     "devDependencies": {
         "@types/bcryptjs": "^2.4.6",

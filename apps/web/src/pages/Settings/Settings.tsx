@@ -1,17 +1,41 @@
 
 import { useState, useEffect } from "react";
-import { Book, MessageCircle, Bug, Lightbulb, Loader2, Save, RefreshCw } from "lucide-react";
+import { Book, MessageCircle, Loader2, Save, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api-client";
-import { toast } from "sonner"; // Assuming sonner is used for toasts
+import { toast } from "sonner";
+import { ApiResponse } from "@/types/api";
+
+interface OrgData {
+  name: string;
+  id: string;
+  plan?: string;
+}
+
+interface FormData {
+  name: string;
+  email: string;
+  organizationName: string;
+  language: string;
+  timezone: string;
+}
+
+interface Notifications {
+  nouvelles_mentions: boolean;
+  alertes_urgentes: boolean;
+  rapports_hebdo: boolean;
+  mentions_negatives: boolean;
+  activite_concurrent: boolean;
+  tendances_marche: boolean;
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [orgData, setOrgData] = useState<any>(null);
+  const [orgData, setOrgData] = useState<OrgData | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     organizationName: "",
@@ -19,7 +43,7 @@ export default function SettingsPage() {
     timezone: "Europe/Paris (GMT+1)"
   });
 
-  const [notifications, setNotifications] = useState({
+  const [notifications, setNotifications] = useState<Notifications>({
     nouvelles_mentions: true,
     alertes_urgentes: true,
     rapports_hebdo: true,
@@ -36,31 +60,32 @@ export default function SettingsPage() {
     if (!user) return;
     setLoading(true);
     try {
-      // In a real app, we might have an endpoint for org settings
-      // For now we use the user info and potentially an org fetch if needed
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        organizationName: "Organisation", // To be fetched
+        organizationName: "Organisation",
         language: "Français",
         timezone: "Europe/Paris (GMT+1)"
       });
 
       if (user.organizationId) {
-        const res = await apiClient.callApi<any>(`/organizations/${user.organizationId}`);
-        if (res.success) {
-          setOrgData(res.data);
-          setFormData(prev => ({ ...prev, organizationName: res.data.name }));
+        const res = await apiClient.callApi<OrgData>(`/organizations/${user.organizationId}`);
+        if ((res as ApiResponse<OrgData>).success) {
+          const data = (res as ApiResponse<OrgData>).data;
+          if (data) {
+            setOrgData(data);
+            setFormData(prev => ({ ...prev, organizationName: data.name }));
+          }
         }
       }
     } catch (err) {
-      console.error("Failed to fetch settings", err);
+      // Error silently handled
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleNotification = (key: string) => {
+  const toggleNotification = (key: keyof Notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -202,7 +227,7 @@ export default function SettingsPage() {
                       <input
                         type="checkbox"
                         checked={notifications[key as keyof typeof notifications]}
-                        onChange={() => toggleNotification(key)}
+                        onChange={() => toggleNotification(key as keyof Notifications)}
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>

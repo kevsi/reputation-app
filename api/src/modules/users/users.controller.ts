@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service';
 import { ApiResponse } from '@/shared/types';
 import { normalizeString } from '@/shared/utils/normalize';
+import { Logger } from '../../shared/logger';
 
 /**
  * 🎮 Controller Users
@@ -17,19 +18,19 @@ class UsersController {
     async getAllUsers(req: Request, res: Response, next: NextFunction) {
         try {
             const organizationId = normalizeString(req.user?.organizationId);
-            console.log('DEBUG: Full JWT payload:', JSON.stringify(req.user, null, 2));
-            console.log('DEBUG: Fetching users for organizationId:', organizationId);
-            console.log('DEBUG: Current user role:', req.user?.role);
+            Logger.debug('Payload JWT complet', { user: req.user });
+            Logger.debug('Recherche des utilisateurs pour organizationId', { organizationId });
+            Logger.debug('Rôle utilisateur courant', { role: req.user?.role });
 
             // TEMP: Fetch ALL users to debug
             const allUsers = await usersService.getAllUsers(undefined);
-            console.log('DEBUG: Total users in DB:', allUsers.length);
+            Logger.debug('Nombre total d\'utilisateurs en base', { total: allUsers.length });
             if (allUsers.length > 0) {
-                console.log('DEBUG: First user organizationId:', allUsers[0].organizationId);
+                Logger.debug('organizationId du premier utilisateur', { organizationId: allUsers[0].organizationId });
             }
 
             const users = await usersService.getAllUsers(organizationId);
-            console.log('DEBUG: Found users with filter:', users.length);
+            Logger.debug('Utilisateurs trouvés avec filtre', { count: users.length });
 
             const response: ApiResponse = {
                 success: true,

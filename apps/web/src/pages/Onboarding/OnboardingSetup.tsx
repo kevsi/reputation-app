@@ -28,7 +28,7 @@ export default function OnboardingSetup() {
 
         // 1. Créer la Marque (Brand)
         const brandName = user?.organization?.name || "Ma Marque";
-        console.log("Creating brand:", brandName);
+        // Creating brand
 
         const brandResponse = await apiClient.createBrand({
           name: brandName,
@@ -40,23 +40,24 @@ export default function OnboardingSetup() {
           throw new Error("Erreur lors de la création de la marque");
         }
 
-        const brand = brandResponse.data;
-        console.log("Brand created:", brand);
+        const brand = brandResponse.data as { id: string; name: string };
+        // Brand created
+    
         setProgress(40);
 
         // 2. Créer le Mot-clé principal (Keyword)
-        console.log("Creating keyword for:", brand.name);
+        // Creating keywords
+    
         await apiClient.createKeyword({
-          word: brand.name,
           brandId: brand.id,
-          isActive: true,
-          priority: 1
+          keyword: brand.name
         });
 
         setProgress(60);
 
         // 3. Créer les Sources (Platforms)
-        console.log("Creating sources:", data.platforms);
+        // Creating sources
+    
         const sourcePromises = data.platforms.map(platform => {
           return apiClient.createSource({
             type: platform.toUpperCase(),
@@ -76,7 +77,8 @@ export default function OnboardingSetup() {
         }, 1000);
 
       } catch (err: any) {
-        console.error("Setup error detail:", err);
+        // Setup error
+    
         setError(err.message || "Une erreur est survenue lors de la configuration.");
         setupStarted.current = false; // Allow retry
       }

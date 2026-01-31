@@ -28,6 +28,7 @@ class BrandsService {
                 description: input.description,
                 website: input.website,
                 logo: input.logo,
+                keywords: input.keywords || [],
                 isActive: input.isActive ?? true,
                 organizationId: input.organizationId
             }

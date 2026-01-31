@@ -13,25 +13,32 @@ import { z } from 'zod';
 /**
  * Types de source autorisés
  */
-const sourceTypeEnum = z.enum(['website', 'social_media', 'news', 'forum']);
+
+/**
+ * Types de source autorisés (synchronisés avec Prisma)
+ */
+const sourceTypeEnum = z.enum([
+  'TWITTER', 'FACEBOOK', 'INSTAGRAM', 'LINKEDIN',
+  'GOOGLE_REVIEWS', 'TRUSTPILOT', 'TRIPADVISOR',
+  'YOUTUBE', 'REDDIT', 'NEWS', 'BLOG', 'FORUM',
+  'RSS', 'REVIEW', 'OTHER'
+]);
 
 /**
  * Validation pour la création d'une source
  */
 export const createSourceSchema = z.object({
+  brandId: z.string().uuid().optional(), // Souvent passé dans l'URL ou le body
   name: z
     .string()
     .min(2, 'Name must be at least 2 characters')
     .max(100, 'Name must not exceed 100 characters')
     .trim(),
-  
-  url: z
-    .string()
-    .url('Invalid URL format')
-    .trim(),
-  
+
   type: sourceTypeEnum,
-  
+
+  config: z.record(z.any()).default({}),
+
   isActive: z
     .boolean()
     .optional()
@@ -49,15 +56,15 @@ export const updateSourceSchema = z.object({
     .max(100, 'Name must not exceed 100 characters')
     .trim()
     .optional(),
-  
+
   url: z
     .string()
     .url('Invalid URL format')
     .trim()
     .optional(),
-  
+
   type: sourceTypeEnum.optional(),
-  
+
   isActive: z
     .boolean()
     .optional(),

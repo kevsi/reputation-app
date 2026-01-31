@@ -277,7 +277,9 @@ class ApiClient {
         offset?: number;
     }) {
         const query = params ? '?' + new URLSearchParams(params as any).toString() : '';
-        return this.request<any[]>(`/mentions${query}`);
+        // Use /filtered endpoint when brandId is provided for filtering
+        const endpoint = params?.brandId ? `/mentions/filtered${query}` : `/mentions${query}`;
+        return this.request<any[]>(endpoint);
     }
 
     async getMentionById(id: string) {
@@ -389,6 +391,35 @@ class ApiClient {
         return this.request<any>('/reports', {
             method: 'POST',
             body: JSON.stringify(data),
+        });
+    }
+
+    // ========================================
+    // ACTIONS
+    // ========================================
+
+    async getActions(organizationId?: string) {
+        const query = organizationId ? `?organizationId=${organizationId}` : '';
+        return this.request<any[]>(`/actions${query}`);
+    }
+
+    async createAction(data: any) {
+        return this.request<any>('/actions', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async updateAction(actionId: string, data: any) {
+        return this.request<any>(`/actions/${actionId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async deleteAction(actionId: string) {
+        return this.request<any>(`/actions/${actionId}`, {
+            method: 'DELETE',
         });
     }
 

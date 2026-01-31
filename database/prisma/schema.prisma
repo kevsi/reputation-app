@@ -2,9 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider      = "prisma-client-js"
+    provider = "prisma-client-js"
 }
-
 
 datasource db {
     provider = "postgresql"
@@ -52,6 +51,7 @@ enum SourceType {
     BLOG
     FORUM
     RSS
+    REVIEW
     OTHER
 }
 
@@ -60,6 +60,7 @@ enum SentimentType {
     NEGATIVE
     NEUTRAL
     MIXED
+    PENDING  // En attente d'analyse ou analyse échouée
 }
 
 enum AlertLevel {
@@ -100,6 +101,15 @@ enum ReportType {
     CUSTOM
 }
 
+enum NotificationType {
+    NEW_MENTION
+    ALERT_TRIGGERED
+    SENTIMENT_SPIKE
+    ACTION_REQUIRED
+    REPORT_READY
+    KEYWORD_TRENDING
+}
+
 // ========================================
 // USERS & AUTHENTICATION
 // ========================================
@@ -123,12 +133,13 @@ model User {
     updatedAt         DateTime  @updatedAt
 
     // Relations
-    organizationId       String?
-    organization         Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-    createdOrganizations Organization[] @relation("OrganizationOwner")
-    actions              Action[]
-    notifications        Notification[]
-    activityLogs         ActivityLog[]
+    organizationId          String?
+    organization            Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+    createdOrganizations    Organization[]           @relation("OrganizationOwner")
+    actions                 Action[]
+    notifications           Notification[]
+    notificationPreferences NotificationPreference[]
+    activityLogs            ActivityLog[]
 
     @@index([email])
     @@index([organizationId])
@@ -153,14 +164,16 @@ model Organization {
     updatedAt  DateTime @updatedAt
 
     // Relations
-    ownerId      String
-    owner        User          @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-    members      User[]
-    subscription Subscription?
-    brands       Brand[]
-    webhooks     Webhook[]
-    integrations Integration[]
-    apiKeys      ApiKey[]
+    ownerId                 String
+    owner                   User                     @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+    members                 User[]
+    subscription            Subscription?
+    brands                  Brand[]
+    webhooks                Webhook[]
+    integrations            Integration[]
+    apiKeys                 ApiKey[]
+    notifications           Notification[]
+    notificationPreferences NotificationPreference[]
 
     @@index([slug])
     @@index([ownerId])
@@ -224,6 +237,7 @@ model Brand {
     website     String?
     logo        String?
     color       String? // Couleur de la marque pour l'UI
+    keywords    String[] // Mots-clés à surveiller
     isActive    Boolean  @default(true)
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
@@ -233,7 +247,6 @@ model Brand {
     organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
     sources        Source[]
     mentions       Mention[]
-    keywords       Keyword[]
     alerts         Alert[]
     reports        Report[]
     competitors    Competitor[] @relation("BrandCompetitors")
@@ -269,9 +282,10 @@ model Source {
     accessToken       String? // Pour les APIs
     refreshToken      String?
     tokenExpiresAt    DateTime?
+    config            Json? // Dynamic config for different source types (e.g., companyName for TRUSTPILOT)
     isActive          Boolean    @default(true)
     lastScrapedAt     DateTime?
-    scrapingFrequency Int        @default(3600) // en secondes
+    scrapingFrequency Int        @default(21600) // en SECONDES (3600 = 1h, 21600 = 6h)
     errorCount        Int        @default(0)
     lastError         String?
     createdAt         DateTime   @default(now())
@@ -293,81 +307,47 @@ model Source {
 // ========================================
 
 model Mention {
-    id              String        @id @default(cuid())
-    content         String        @db.Text
-    author          String?
-    authorUrl       String?
-    authorAvatar    String?
-    url             String?
-    sentiment       SentimentType @default(NEUTRAL)
-    sentimentScore  Float? // -1 à 1
-    language        String?
-    reachScore      Int? // Score de portée/viralité
-    engagementCount Int           @default(0)
-    publishedAt     DateTime
-    analyzedAt      DateTime?
-    rawData         Json? // Données brutes de la source
-    isProcessed     Boolean       @default(false)
-    createdAt       DateTime      @default(now())
-    updatedAt       DateTime      @updatedAt
+    id       String @id @default(cuid())
+    brandId  String
+    brand    Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+    sourceId String
+    source   Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+    // Contenu brut
+    content     String   @db.Text
+    author      String
+    url         String
+    publishedAt DateTime
+
+    // Métadonnées
+    platform   SourceType
+    externalId String // ID unique sur la plateforme
+
+    // Analyse
+    sentiment        SentimentType @default(NEUTRAL)
+    sentimentScore   Float? // -1 à 1
+    language         String?
+    reachScore       Int? // Score de portée/viralité
+    engagementCount  Int           @default(0)
+    analyzedAt       DateTime?
+    rawData          Json? // Données brutes de la source
+    detectedKeywords String[] // Mots-clés détectés dans le texte
+
+    // État
+    isProcessed Boolean  @default(false)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
 
     // Relations
-    brandId         String
-    brand           Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
-    sourceId        String
-    source          Source           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-    mentionKeywords MentionKeyword[]
-    alertTriggers   AlertTrigger[]
+    alertTriggers AlertTrigger[]
 
+    @@unique([externalId, platform]) // Évite les doublons
     @@index([brandId])
     @@index([sourceId])
     @@index([sentiment])
     @@index([publishedAt])
     @@index([isProcessed])
     @@map("mentions")
-}
-
-// ========================================
-// KEYWORDS
-// ========================================
-
-model Keyword {
-    id         String   @id @default(cuid())
-    word       String
-    category   String?
-    priority   Int      @default(0)
-    isNegative Boolean  @default(false)
-    isActive   Boolean  @default(true)
-    createdAt  DateTime @default(now())
-    updatedAt  DateTime @updatedAt
-
-    // Relations
-    brandId         String
-    brand           Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
-    mentionKeywords MentionKeyword[]
-
-    @@unique([brandId, word])
-    @@index([brandId])
-    @@index([word])
-    @@index([isActive])
-    @@map("keywords")
-}
-
-model MentionKeyword {
-    id        String   @id @default(cuid())
-    count     Int      @default(1)
-    createdAt DateTime @default(now())
-
-    // Relations
-    mentionId String
-    mention   Mention @relation(fields: [mentionId], references: [id], onDelete: Cascade)
-    keywordId String
-    keyword   Keyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
-
-    @@unique([mentionId, keywordId])
-    @@index([mentionId])
-    @@index([keywordId])
-    @@map("mention_keywords")
 }
 
 // ========================================
@@ -493,25 +473,6 @@ model Report {
 // NOTIFICATIONS
 // ========================================
 
-model Notification {
-    id        String   @id @default(cuid())
-    title     String
-    message   String
-    type      String // alert, mention, report, system
-    isRead    Boolean  @default(false)
-    data      Json? // Données supplémentaires
-    createdAt DateTime @default(now())
-
-    // Relations
-    userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@index([userId])
-    @@index([isRead])
-    @@index([createdAt])
-    @@map("notifications")
-}
-
 // ========================================
 // WEBHOOKS
 // ========================================
@@ -631,4 +592,44 @@ model ActivityLog {
     @@index([entity])
     @@index([createdAt])
     @@map("activity_logs")
+}
+
+// ========================================
+// NOTIFICATIONS
+// ========================================
+
+model Notification {
+    id             String           @id @default(cuid())
+    userId         String
+    organizationId String
+    type           NotificationType
+    title          String
+    message        String
+    data           Json?
+    isRead         Boolean          @default(false)
+    createdAt      DateTime         @default(now())
+
+    user         User         @relation(fields: [userId], references: [id])
+    organization Organization @relation(fields: [organizationId], references: [id])
+
+    @@index([userId, isRead])
+    @@index([organizationId, createdAt])
+    @@map("notifications")
+}
+
+model NotificationPreference {
+    id             String           @id @default(cuid())
+    userId         String
+    organizationId String
+    type           NotificationType
+    inApp          Boolean          @default(true)
+    email          Boolean          @default(false)
+    webhook        Boolean          @default(false)
+    webhookUrl     String?
+
+    user         User         @relation(fields: [userId], references: [id])
+    organization Organization @relation(fields: [organizationId], references: [id])
+
+    @@unique([userId, organizationId, type])
+    @@map("notification_preferences")
 }

@@ -1,0 +1,59 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.reportsProcessor = void 0;
+const database_1 = require("../config/database");
+const reportsProcessor = async (job) => {
+    const { brandId, reportId } = job.data;
+    console.log(`📊 Generating report ${reportId} for brand ${brandId}...`);
+    try {
+        // 1. Fetch report configuration
+        const report = await database_1.prisma.report.findUnique({
+            where: { id: reportId }
+        });
+        if (!report) {
+            console.warn(`⚠️ Report ${reportId} not found`);
+            return;
+        }
+        // 2. Fetch mentions in the period
+        const mentions = await database_1.prisma.mention.findMany({
+            where: {
+                brandId,
+                publishedAt: {
+                    gte: report.startDate,
+                    lte: report.endDate
+                }
+            }
+        });
+        // 3. Calculate statistics
+        const totalMentions = mentions.length;
+        const sentimentCounts = mentions.reduce((acc, m) => {
+            acc[m.sentiment] = (acc[m.sentiment] || 0) + 1;
+            return acc;
+        }, {});
+        const reportData = {
+            totalMentions,
+            sentimentCounts,
+            generatedAt: new Date(),
+            period: {
+                start: report.startDate,
+                end: report.endDate
+            }
+        };
+        // 4. Update report in DB
+        await database_1.prisma.report.update({
+            where: { id: reportId },
+            data: {
+                data: reportData,
+                generatedAt: new Date()
+                // fileUrl could be updated here if we generated a PDF/CSV
+            }
+        });
+        console.log(`✅ Report ${reportId} generated successfully`);
+        return { success: true };
+    }
+    catch (error) {
+        console.error(`❌ Report generation failed for ${reportId}:`, error);
+        throw error;
+    }
+};
+exports.reportsProcessor = reportsProcessor;

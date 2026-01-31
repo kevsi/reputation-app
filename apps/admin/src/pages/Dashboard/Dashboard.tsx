@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminStatCard } from "@/components/dashboard/AdminStatCard";
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     organizations: { total: 0, active: 0 },
@@ -186,7 +188,12 @@ export default function AdminDashboard() {
                 <ConnectorStatusItem key={index} {...connector} />
               ))}
               <div className="pt-4 mt-4 border-t border-border/50 text-center">
-                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground w-full">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground w-full"
+                  onClick={() => navigate('/admin/connectors')}
+                >
                   Voir tous les connecteurs
                 </Button>
               </div>
@@ -222,7 +229,10 @@ export default function AdminDashboard() {
             <p className="text-sm text-blue-100 mb-6 leading-relaxed">
               Ne manquez aucun retour critique. Configurez des alertes automatiques basées sur le sentiment pour être informé en temps réel.
             </p>
-            <Button className="w-full bg-white text-blue-600 hover:bg-blue-50">
+            <Button
+              className="w-full bg-white text-blue-600 hover:bg-blue-50"
+              onClick={() => navigate('/admin/alerts')}
+            >
               Paramétrer les alertes
             </Button>
           </CardContent>

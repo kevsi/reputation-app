@@ -3,15 +3,41 @@ import { apiClient } from "@/lib/api-client";
 import { UserTableRow } from "@/components/users/UserTableRow";
 import { Search, Loader2, UserPlus, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: 'USER'
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -32,6 +58,61 @@ export default function UsersPage() {
       setError("Impossible de charger les utilisateurs. Veuillez réessayer.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.createUser(formData);
+      if (response.success) {
+        setUsers([response.data, ...users]);
+        setIsDialogOpen(false);
+        setFormData({ name: '', email: '', role: 'USER' });
+      } else {
+        throw new Error(response.error?.message || 'Erreur lors de la création');
+      }
+    } catch (err: any) {
+      setError(err.error?.message || err.message || 'Erreur lors de la création de l\'utilisateur.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleManageUser = (user: any) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name || '',
+      email: user.email,
+      role: user.role
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.updateUser(editingUser.id, formData);
+      if (response.success) {
+        setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...formData } : u));
+        setIsDialogOpen(false);
+        setEditingUser(null);
+        setFormData({ name: '', email: '', role: 'USER' });
+      } else {
+        throw new Error(response.error?.message || 'Erreur lors de la mise à jour');
+      }
+    } catch (err: any) {
+      setError(err.error?.message || err.message || 'Erreur lors de la mise à jour de l\'utilisateur.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -57,10 +138,80 @@ export default function UsersPage() {
               Contrôler les comptes utilisateurs et leurs accès
             </p>
           </div>
-          <Button className="bg-foreground text-background hover:opacity-90">
-            <UserPlus className="w-4 h-4 mr-2" />
-            Nouvel utilisateur
-          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-foreground text-background hover:opacity-90">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Nouvel utilisateur
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingUser ? 'Modifier l\'utilisateur' : 'Créer un nouvel utilisateur'}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nom complet *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: Jean Dupont"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="jean.dupont@exemple.com"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Rôle</Label>
+                  <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USER">Utilisateur</SelectItem>
+                      <SelectItem value="MANAGER">Manager</SelectItem>
+                      <SelectItem value="ADMIN">Administrateur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => {
+                    setIsDialogOpen(false);
+                    setEditingUser(null);
+                    setFormData({ name: '', email: '', role: 'USER' });
+                  }}>
+                    Annuler
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {editingUser ? 'Modifier' : 'Créer'} l'utilisateur
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -152,7 +303,7 @@ export default function UsersPage() {
                     role={user.role}
                     createdAt={new Date(user.createdAt).toLocaleDateString()}
                     status={user.isActive ? "Actif" : "Bloqué"}
-                    onManage={() => console.log("Manage user", user.id)}
+                    onManage={() => handleManageUser(user)}
                   />
                 ))
               )}

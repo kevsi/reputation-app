@@ -69,6 +69,7 @@ export default function SourcesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('all');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingSource, setEditingSource] = useState<Source | null>(null);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -133,6 +134,60 @@ export default function SourcesPage() {
         }
     };
 
+    const handleEditSource = (source: Source) => {
+        setEditingSource(source);
+        setFormData({
+            name: source.name,
+            type: source.type,
+            url: source.url || '',
+            brandId: source.brandId || ''
+        });
+        setIsDialogOpen(true);
+    };
+
+    const handleUpdateSource = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingSource) return;
+
+        setIsSubmitting(true);
+        setError(null);
+
+        try {
+            const response = await apiClient.updateSource(editingSource.id, formData);
+            if (response.success) {
+                // Refresh sources
+                const updatedSources = await apiClient.getSources();
+                if (updatedSources.success) setSources(updatedSources.data);
+
+                setIsDialogOpen(false);
+                setEditingSource(null);
+                setFormData({ name: '', type: 'WEB', url: '', brandId: '' });
+            } else {
+                throw new Error(response.error?.message || 'Erreur lors de la mise à jour');
+            }
+        } catch (err: any) {
+            setError(err.error?.message || err.message || 'Erreur lors de la mise à jour de la source.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteSource = async (sourceId: string) => {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette source ?')) return;
+
+        try {
+            const response = await apiClient.deleteSource(sourceId);
+            if (response.success) {
+                setSources(sources.filter(s => s.id !== sourceId));
+            } else {
+                throw new Error('Failed to delete source');
+            }
+        } catch (err: any) {
+            console.error('Error deleting source:', err);
+            setError('Erreur lors de la suppression de la source.');
+        }
+    };
+
     const filteredSources = sources.filter(source => {
         const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             source.type.toLowerCase().includes(searchQuery.toLowerCase());
@@ -171,9 +226,11 @@ export default function SourcesPage() {
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[500px]">
                         <DialogHeader>
-                            <DialogTitle>Ajouter une source de veille</DialogTitle>
+                            <DialogTitle>
+                                {editingSource ? 'Modifier la source' : 'Ajouter une source de veille'}
+                            </DialogTitle>
                         </DialogHeader>
-                        <form onSubmit={handleCreateSource} className="space-y-4 py-4">
+                        <form onSubmit={editingSource ? handleUpdateSource : handleCreateSource} className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="brandId">Marque concernée *</Label>
                                 <Select
@@ -232,10 +289,14 @@ export default function SourcesPage() {
                             </div>
 
                             <DialogFooter className="pt-4">
-                                <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+                                <Button type="button" variant="ghost" onClick={() => {
+                                    setIsDialogOpen(false);
+                                    setEditingSource(null);
+                                    setFormData({ name: '', type: 'TWITTER', url: '', brandId: '' });
+                                }}>Annuler</Button>
                                 <Button type="submit" disabled={isSubmitting || brands.length === 0} className="bg-gradient-to-r from-blue-600 to-purple-600">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                                    Ajouter la source
+                                    {editingSource ? 'Modifier' : 'Ajouter'} la source
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -315,10 +376,13 @@ export default function SourcesPage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleEditSource(source)}>
                                                 <Edit2 className="w-4 h-4 mr-2" /> Modifier
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem className="text-destructive">
+                                            <DropdownMenuItem
+                                                onClick={() => handleDeleteSource(source.id)}
+                                                className="text-destructive"
+                                            >
                                                 <Trash2 className="w-4 h-4 mr-2" /> Supprimer
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>

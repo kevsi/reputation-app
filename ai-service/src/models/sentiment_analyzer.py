@@ -5,6 +5,9 @@ import time
 import structlog
 from ..config.settings import settings
 from ..utils.exceptions import ModelLoadException
+from .model_state import set_sentiment_loaded
+
+logger = structlog.get_logger()
 
 logger = structlog.get_logger()
 
@@ -13,6 +16,7 @@ class SentimentAnalyzer:
     
     _instance = None
     _model = None
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -21,16 +25,18 @@ class SentimentAnalyzer:
 
     def initialize(self):
         """Lazy loading of the model."""
-        if self._model is None:
+        if not self.__class__._initialized:
             try:
                 logger.info("Loading Sentiment Model...", model=settings.SENTIMENT_MODEL)
                 device = 0 if settings.USE_GPU else -1
-                self._model = pipeline(
+                self.__class__._model = pipeline(
                     "sentiment-analysis",
                     model=settings.SENTIMENT_MODEL,
                     device=device,
                     top_k=None # Return all scores
                 )
+                self.__class__._initialized = True
+                set_sentiment_loaded(True)
                 logger.info("Sentiment Model loaded successfully")
             except Exception as e:
                 logger.error("Failed to load sentiment model", error=str(e))
@@ -40,7 +46,7 @@ class SentimentAnalyzer:
         """
         Analyzes the sentiment of a text.
         """
-        if self._model is None:
+        if not self.__class__._initialized:
             self.initialize()
 
         start = time.time()
@@ -52,7 +58,7 @@ class SentimentAnalyzer:
 
         try:
             # Result is a list of lists because top_k=None and we pass a single string
-            results = self._model(truncated_text)
+            results = self.__class__._model(truncated_text)
             # results looks like: [[{'label': '5 stars', 'score': 0.8}, {'label': '4 stars', ...}]]
             scores_list = results[0] # First sentence results
             

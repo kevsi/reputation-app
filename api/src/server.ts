@@ -1,27 +1,33 @@
 import http from 'http';
 import { Application } from 'express';
 import { config } from './config/app';
-import { logger } from './infrastructure/logger';
+import { Logger } from './shared/logger';
+import { websocketService } from './infrastructure/websocket/websocket.service';
+import { prisma } from './shared/database/prisma.client';
 
 export const startServer = (app: Application): http.Server => {
   const server = http.createServer(app);
 
+  // Initialize WebSocket service
+  websocketService.initialize(server);
+
   // Graceful shutdown
-  const gracefulShutdown = (signal: string) => {
-    logger.info(`${signal} received, shutting down gracefully...`);
-    
-    server.close(() => {
-      logger.info('HTTP server closed');
-      
-      // Close database connections, redis, etc.
-      // TODO: Add cleanup logic here
-      
+  const gracefulShutdown = async (signal: string) => {
+    Logger.info(`${signal} reçu, arrêt du serveur en cours...`, { composant: 'Server', operation: 'gracefulShutdown', signal });
+
+    server.close(async () => {
+      Logger.info('Serveur HTTP arrêté', { composant: 'Server', operation: 'gracefulShutdown' });
+
+      // Close database connections
+      await prisma.$disconnect();
+      Logger.info('Connexions à la base de données fermées', { composant: 'Server', operation: 'gracefulShutdown' });
+
       process.exit(0);
     });
 
     // Force shutdown after 30 seconds
     setTimeout(() => {
-      logger.error('Forced shutdown after timeout');
+      Logger.error('Arrêt forcé après expiration du délai', new Error('Timeout expired'), { composant: 'Server', operation: 'gracefulShutdown', timeout: 30000 });
       process.exit(1);
     }, 30000);
   };
@@ -32,18 +38,19 @@ export const startServer = (app: Application): http.Server => {
 
   // Handle uncaught errors
   process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception:', error);
+    Logger.error('Exception non interceptée', error instanceof Error ? error : new Error(String(error)), { composant: 'Server', operation: 'uncaughtException' });
     process.exit(1);
   });
 
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    Logger.error('Rejet de promesse non géré', error, { composant: 'Server', operation: 'unhandledRejection', reason, promise });
     process.exit(1);
   });
 
   // Start server
   server.listen(config.PORT, () => {
-    logger.info(`
+    Logger.info(`
 ╔════════════════════════════════════════════╗
 ║   🚀 Sentinelle-Reputation API Started    ║
 ╠════════════════════════════════════════════╣

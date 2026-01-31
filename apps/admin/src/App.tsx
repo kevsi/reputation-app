@@ -17,12 +17,13 @@ import RegisterPage from './pages/Auth/RegisterPage'
 import BrandsPage from './pages/Brands/BrandsPage'
 import SourcesPage from './pages/Sources/SourcesPage'
 import MentionsPage from './pages/Mentions/MentionsPage'
+import ActionsPage from './pages/Actions/ActionsPage'
 
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="mentions" element={<MentionsPage />} />
               <Route path="brands" element={<BrandsPage />} />
               <Route path="sources" element={<SourcesPage />} />
+              <Route path="actions" element={<ActionsPage />} />
               <Route path="organisations" element={<Organisations />} />
               <Route path="users" element={<Users />} />
               <Route path="connectors" element={<Connectors />} />

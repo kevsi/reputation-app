@@ -1,5 +1,6 @@
 import { prisma } from '../../shared/database/prisma.client';
 import { AlertCondition, AlertLevel, AlertStatus } from '@sentinelle/database';
+import { notificationsService } from '../notifications/notifications.service';
 
 class AlertsService {
     /**
@@ -102,6 +103,39 @@ class AlertsService {
             matchingCount: matchingMentions.length,
             sampleMentions: matchingMentions
         };
+    }
+
+    /**
+     * Déclenche une notification pour une alerte
+     */
+    async triggerAlertNotification(alertId: string) {
+        const alert = await prisma.alert.findUnique({
+            where: { id: alertId },
+            include: { brand: { include: { organization: true } } }
+        });
+
+        if (!alert) return;
+
+        // Créer une notification pour chaque utilisateur de l'organisation
+        const users = await prisma.user.findMany({
+            where: { organizationId: alert.brand.organizationId }
+        });
+
+        for (const user of users) {
+            await notificationsService.createNotification({
+                userId: user.id,
+                organizationId: alert.brand.organizationId,
+                type: 'ALERT_TRIGGERED',
+                title: `Alerte: ${alert.name}`,
+                message: `Une alerte a été déclenchée pour la marque ${alert.brand.name}`,
+                data: {
+                    alertId,
+                    brandId: alert.brand.id,
+                    threshold: alert.threshold,
+                    condition: alert.condition
+                }
+            });
+        }
     }
 }
 

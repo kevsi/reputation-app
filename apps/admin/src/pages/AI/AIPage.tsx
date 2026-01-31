@@ -103,6 +103,14 @@ export default function AIPage() {
     }
   };
 
+  const handleConfigure = (modelKey: string) => {
+    alert(`Configuration du modèle ${modelKey} - Cette fonctionnalité sera bientôt disponible.`);
+  };
+
+  const handleTest = (modelKey: string) => {
+    alert(`Test du modèle ${modelKey} lancé. Cette fonctionnalité sera bientôt disponible.`);
+  };
+
   useEffect(() => {
     fetchStatus();
   }, []);
@@ -187,8 +195,8 @@ export default function AIPage() {
                 accuracy={model.accuracy}
                 requests24h={model.requests24h}
                 status={model.status}
-                onConfigure={() => console.log("Configure", model.key)}
-                onTest={() => console.log("Test", model.key)}
+                onConfigure={() => handleConfigure(model.key)}
+                onTest={() => handleTest(model.key)}
               />
             ))}
           </div>

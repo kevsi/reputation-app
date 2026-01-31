@@ -23,7 +23,8 @@ export default function AlertsPage() {
       const data = response.data || (Array.isArray(response) ? response : []);
       setAlerts(data);
     } catch (err) {
-      console.error("Failed to fetch alerts", err);
+      // Error fetching alerts
+    
       setError("Impossible de charger les alertes.");
     } finally {
       setLoading(false);
@@ -141,9 +142,9 @@ export default function AlertsPage() {
                 <AlertCard
                   key={alert.id}
                   {...alert}
-                  onView={() => console.log("View", alert.id)}
-                  onResolve={() => console.log("Resolve", alert.id)}
-                  onIgnore={() => console.log("Ignore", alert.id)}
+                  onView={() => {}}
+                  onResolve={() => {}}
+                  onIgnore={() => {}}
                 />
               ))}
             </div>

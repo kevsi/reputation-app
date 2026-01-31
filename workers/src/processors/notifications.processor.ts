@@ -1,10 +1,8 @@
-import { Job } from 'bull';
-import { PrismaClient } from '@sentinelle/database';
-
-const prisma = new PrismaClient();
+import { Job } from 'bullmq';
+import { prisma } from '../config/database';
 
 export const notificationsProcessor = async (job: Job) => {
-    const { type, userId, title, message, data } = job.data;
+    const { type, userId, organizationId, title, message, data } = job.data;
 
     console.log(`🔔 Sending ${type} notification to user ${userId}: ${title}`);
 
@@ -19,10 +17,18 @@ export const notificationsProcessor = async (job: Job) => {
             return;
         }
 
-        // 2. Create notification in database
+        // 2. Get organizationId from user if not provided
+        const org = organizationId || user.organizationId;
+        if (!org) {
+            console.warn(`⚠️ No organization found for user ${userId}`);
+            return;
+        }
+
+        // 3. Create notification in database
         const notification = await prisma.notification.create({
             data: {
                 userId,
+                organizationId: org,
                 type,
                 title,
                 message,

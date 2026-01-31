@@ -48,6 +48,27 @@ export default function ConnectorsPage() {
     }
   };
 
+  const handleConfigure = async (connectorId: string) => {
+    // Simple toggle active/inactive for now
+    const connector = sources.find(s => s.id === connectorId);
+    if (!connector) return;
+
+    const newActive = connector.status !== "Opérationnel";
+    try {
+      await apiClient.updateSource(connectorId, { isActive: newActive });
+      // Refresh data
+      await fetchData();
+    } catch (error) {
+      console.error("Failed to update connector:", error);
+      alert("Erreur lors de la mise à jour du connecteur");
+    }
+  };
+
+  const handleTest = (connectorId: string) => {
+    // For now, just show a message
+    alert("Test du connecteur lancé. Cette fonctionnalité sera bientôt disponible.");
+  };
+
   const getIconForType = (type: string) => {
     const t = (type || '').toLowerCase();
     if (t.includes('twitter') || t.includes('x')) return "❌";
@@ -200,8 +221,8 @@ export default function ConnectorsPage() {
                   collected24h={connector.collected24h}
                   errors={connector.errors}
                   lastSync={connector.lastSync}
-                  onConfigure={() => console.log("Configure", connector.id)}
-                  onTest={() => console.log("Test", connector.id)}
+                  onConfigure={() => handleConfigure(connector.id)}
+                  onTest={() => handleTest(connector.id)}
                 />
               ))}
             </div>

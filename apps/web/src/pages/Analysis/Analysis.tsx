@@ -7,6 +7,7 @@ import { TrendingKeywords } from "@/components/analysis/TrendingKeywords";
 import { ActiveInfluencers } from "@/components/analysis/ActiveInfluencers";
 import { SourcesBreakdown } from "@/components/analysis/SourcesBreakdown";
 import { Filter, BarChart3, Save, Download, TrendingUp, AlertTriangle, Lightbulb } from "lucide-react";
+import { usePlan } from "@/hooks/usePlan";
 
 // Data
 const aiInsightsData = [
@@ -72,7 +73,8 @@ const sourcesData = [
 ];
 
 export default function AnalysisPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("30j");
+  const [_selectedPeriod, setSelectedPeriod] = useState("30j");
+  const { hasFeature } = usePlan();
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
@@ -93,45 +95,62 @@ export default function AnalysisPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-            <Filter className="w-4 h-4" />
-            Filtres avancés
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-            <BarChart3 className="w-4 h-4" />
-            Comparer
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-            <Save className="w-4 h-4" />
-            Sauvegarder vue
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-            <Download className="w-4 h-4" />
-            Exporter
-          </button>
-        </div>
+        {hasFeature('analysis') && (
+          <div className="flex flex-wrap gap-3 mb-6">
+            <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
+              <Filter className="w-4 h-4" />
+              Filtres avancés
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
+              <BarChart3 className="w-4 h-4" />
+              Comparer
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
+              <Save className="w-4 h-4" />
+              Sauvegarder vue
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+              <Download className="w-4 h-4" />
+              Exporter
+            </button>
+          </div>
+        )}
 
         {/* Content */}
-        <div className="space-y-6">
-          {/* AI Insights */}
-          <AIInsights insights={aiInsightsData} />
+        {hasFeature('analysis') ? (
+          <div className="space-y-6">
+            {/* AI Insights */}
+            <AIInsights insights={aiInsightsData} />
 
-          {/* Sentiment Analysis + Timeline */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <SentimentAnalysis data={sentimentData} totalPositive={78} />
-            <SentimentTimeline data={timelineData} evolution="+12.5%" isPositive={true} />
+            {/* Sentiment Analysis + Timeline */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <SentimentAnalysis data={sentimentData} totalPositive={78} />
+              <SentimentTimeline data={timelineData} evolution="+12.5%" isPositive={true} />
+            </div>
+
+            {/* Keywords + Influencers */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <TrendingKeywords keywords={keywordsData} />
+              <ActiveInfluencers influencers={influencersData} />
+            </div>
+
+            {/* Sources Breakdown */}
+            <SourcesBreakdown sources={sourcesData} />
           </div>
-
-          {/* Keywords + Influencers */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TrendingKeywords keywords={keywordsData} />
-            <ActiveInfluencers influencers={influencersData} />
+        ) : (
+          <div className="text-center py-12">
+            <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              Analyse avancée non disponible
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Mettez à niveau votre plan pour accéder aux analyses approfondies et aux insights IA.
+            </p>
+            <button className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity">
+              Mettre à niveau
+            </button>
           </div>
-
-          {/* Sources Breakdown */}
-          <SourcesBreakdown sources={sourcesData} />
-        </div>
+        )}
       </div>
     </div>
   );

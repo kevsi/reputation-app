@@ -53,7 +53,7 @@ export default function OnboardingInvite() {
 
   const handleSendInvite = () => {
     if (email) {
-      console.log("Sending invite to:", email);
+      // Sending invite
       setEmail("");
     }
   };

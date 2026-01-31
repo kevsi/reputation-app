@@ -16,7 +16,7 @@ interface ReportCardProps {
 }
 
 export function ReportCard({
-  id,
+  id: _id,
   title,
   type,
   date,

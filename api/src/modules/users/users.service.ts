@@ -1,7 +1,8 @@
 import { prisma } from '@/shared/database/prisma.client';
 import { AppError } from '@/shared/utils/errors';
-import { logger } from '@/infrastructure/logger';
+import { Logger } from '../../shared/logger';
 import { Role } from '@sentinelle/database';
+import { passwordService } from '@/modules/auth/password.service';
 
 /**
  * 🎯 Service Users
@@ -34,7 +35,7 @@ class UsersService {
                 },
             });
         } catch (error) {
-            logger.error('Error in getAllUsers:', error);
+            Logger.error('Erreur lors de la récupération de tous les utilisateurs', error as Error, { composant: 'UsersService', operation: 'getAllUsers', organizationId });
             throw new AppError('Failed to fetch users', 500);
         }
     }
@@ -64,7 +65,7 @@ class UsersService {
                 },
             });
         } catch (error) {
-            logger.error('Error in getActiveUsers:', error);
+            Logger.error('Erreur lors de la récupération des utilisateurs actifs', error as Error, { composant: 'UsersService', operation: 'getActiveUsers', organizationId });
             throw new AppError('Failed to fetch active users', 500);
         }
     }
@@ -91,7 +92,7 @@ class UsersService {
                 },
             });
         } catch (error) {
-            logger.error(`Error in getUserById for id ${id}:`, error);
+            Logger.error('Erreur lors de la récupération d\'un utilisateur par ID', error as Error, { composant: 'UsersService', operation: 'getUserById', id });
             throw new AppError('Failed to fetch user', 500);
         }
     }
@@ -113,10 +114,13 @@ class UsersService {
                 throw new AppError('Email already in use', 409, 'EMAIL_EXISTS');
             }
 
+            // Hasher le mot de passe
+            const hashedPassword = await passwordService.hash(data.password);
+
             return await prisma.user.create({
                 data: {
                     email: data.email,
-                    password: data.password,
+                    password: hashedPassword,
                     name: data.name,
                     role: data.role as Role,
                     organizationId: data.organizationId,
@@ -135,7 +139,7 @@ class UsersService {
             });
         } catch (error) {
             if (error instanceof AppError) throw error;
-            logger.error('Error in createUser:', error);
+            Logger.error('Erreur lors de la création d\'un utilisateur', error as Error, { composant: 'UsersService', operation: 'createUser' });
             throw new AppError('Failed to create user', 500);
         }
     }
@@ -164,7 +168,7 @@ class UsersService {
                 },
             });
         } catch (error) {
-            logger.error(`Error in updateUser for id ${id}:`, error);
+            Logger.error('Erreur lors de la mise à jour d\'un utilisateur', error as Error, { composant: 'UsersService', operation: 'updateUser', id });
             if ((error as any).code === 'P2025') {
                 return null;
             }
@@ -185,7 +189,7 @@ class UsersService {
             });
             return true;
         } catch (error) {
-            logger.error(`Error in deleteUser for id ${id}:`, error);
+            Logger.error('Erreur lors de la suppression d\'un utilisateur', error as Error, { composant: 'UsersService', operation: 'deleteUser', id });
             if ((error as any).code === 'P2025') {
                 return false;
             }

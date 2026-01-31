@@ -1,5 +1,3 @@
-import { User } from '@sentinelle/database';
-
 declare global {
   namespace Express {
     interface Request {

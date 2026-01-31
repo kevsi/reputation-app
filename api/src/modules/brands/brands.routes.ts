@@ -1,9 +1,13 @@
 import { Router } from 'express';
 import { brandsController } from './brands.controller';
 import { checkLimit } from '../../shared/middleware/plan.middleware';
+import { requireAuth } from '../../shared/middleware/auth.middleware';
 import { prisma } from '../../shared/database/prisma.client';
 
 const router = Router();
+
+// Toutes les routes nécessitent une authentification
+router.use(requireAuth);
 
 // Helper pour compter les marques d'une organisation
 const countBrands = async (organizationId: string) => {

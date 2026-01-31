@@ -10,10 +10,10 @@ export const setupMonitor = () => {
 
     createBullBoard({
         queues: [
-            new BullAdapter(scrapingQueue),
-            new BullAdapter(analysisQueue),
-            new BullAdapter(notificationsQueue),
-            new BullAdapter(reportsQueue),
+            new BullAdapter(scrapingQueue as any),
+            new BullAdapter(analysisQueue as any),
+            new BullAdapter(notificationsQueue as any),
+            new BullAdapter(reportsQueue as any),
         ],
         serverAdapter: serverAdapter,
     });

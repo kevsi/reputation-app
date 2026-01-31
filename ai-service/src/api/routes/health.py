@@ -7,6 +7,7 @@ from ...schemas.responses import HealthResponse, ReadyResponse
 from ...models.sentiment_analyzer import SentimentAnalyzer
 from ...models.emotion_detector import EmotionDetector
 from ...models.keyword_extractor import KeywordExtractor
+from ...models.model_state import get_models_status
 
 router = APIRouter()
 START_TIME = time.time()
@@ -16,14 +17,8 @@ async def health_check():
     """Liveness probe."""
     uptime = time.time() - START_TIME
     
-    # Check if singletons have 'initialized' flag or just exist
-    # We check if the underlying model is not None
-    
-    models_status = {
-        "sentiment": SentimentAnalyzer()._model is not None,
-        "emotions": EmotionDetector()._model is not None,
-        "keywords": KeywordExtractor()._nlp_fr is not None # Proxy for loaded
-    }
+    # Get models status from global state
+    models_status = get_models_status()
     
     return HealthResponse(
         status="healthy",
@@ -37,9 +32,9 @@ async def readiness_check():
     """Readiness probe. Checks if models are actually loaded in memory."""
     
     loaded_count = 0
-    if SentimentAnalyzer()._model: loaded_count += 1
-    if EmotionDetector()._model: loaded_count += 1
-    if KeywordExtractor()._nlp_fr: loaded_count += 1
+    if SentimentAnalyzer._model: loaded_count += 1
+    if EmotionDetector._model: loaded_count += 1
+    if KeywordExtractor._nlp_fr: loaded_count += 1
     
     # Memory usage
     process = psutil.Process(os.getpid())

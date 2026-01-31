@@ -2,7 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ZodTypeAny, ZodError } from 'zod';
-import { logger } from '@/infrastructure/logger';
+import { Logger } from '../../shared/logger';
 
 /**
  * 🛡️ Middleware de validation générique
@@ -29,7 +29,7 @@ export const validate = (schema: ZodTypeAny) => {
           message: err.message,
         }));
 
-        logger.warn('Validation error', { errors });
+        Logger.warn('Erreur de validation', { errors, composant: 'ValidateMiddleware', operation: 'validate' });
 
         return res.status(400).json({
           success: false,

@@ -1,3 +1,4 @@
+import { Logger } from '../shared/logger';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -23,17 +24,17 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
 
-  STRIPE_SECRET_KEY: z.string(),
-  STRIPE_WEBHOOK_SECRET: z.string(),
-  STRIPE_PUBLISHABLE_KEY: z.string(),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
 
   EMAIL_PROVIDER: z.string().default('sendgrid'),
   SENDGRID_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email(),
   EMAIL_FROM_NAME: z.string(),
 
-  AI_SERVICE_URL: z.string().url(),
-  AI_SERVICE_API_KEY: z.string(),
+  AI_SERVICE_URL: z.string().url().optional(),
+  AI_SERVICE_API_KEY: z.string().optional(),
 
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
@@ -51,9 +52,9 @@ const parseEnv = () => {
     return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Invalid environment variables:');
+      Logger.error('Variables d\'environnement invalides', error instanceof Error ? error : new Error('Erreur de validation d\'environnement'), { composant: 'ConfigApp', operation: 'parseEnv' });
       error.errors.forEach((err) => {
-        console.error(`  ${err.path.join('.')}: ${err.message}`);
+        Logger.error('Erreur de validation d\'environnement', error instanceof Error ? error : new Error('Erreur de validation d\'environnement'), { composant: 'ConfigApp', operation: 'parseEnv', path: err.path, message: err.message });
       });
       process.exit(1);
     }
