@@ -1,31 +1,52 @@
-import { Queue } from 'bullmq';
-import Redis from 'ioredis';
-import { logger } from '../logger';
+/**
+ * Queue de scraping BullMQ
+ * Conforme à PROMPT_AGENT_IA_PRECISION_MAXIMALE.md
+ */
+import { Queue, QueueEvents } from 'bullmq';
+import { redisConnection } from '@/config/redis';
+import { logger } from '@/infrastructure/logger';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const url = new URL(REDIS_URL);
-
-const redisConfig = {
-  host: url.hostname,
-  port: parseInt(url.port) || 6379,
-  password: url.password || undefined,
-  maxRetriesPerRequest: null
+const connection = {
+  host: redisConnection.host,
+  port: redisConnection.port,
+  password: redisConnection.password,
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
 };
 
-const connection = new Redis(redisConfig);
-
-const scrapingQueue = new Queue('scraping', {
+export const scrapingQueue = new Queue('scraping', {
   connection,
   defaultJobOptions: {
     attempts: 3,
     backoff: {
       type: 'exponential',
-      delay: 5000
-    }
-  }
+      delay: 2000,
+    },
+    removeOnComplete: {
+      age: 3600,
+      count: 100,
+    },
+    removeOnFail: {
+      age: 86400,
+    },
+  },
 });
 
-logger.info(`✅ Scraping queue connected to Redis at ${url.hostname}`);
+const queueEvents = new QueueEvents('scraping', { connection });
 
-export { scrapingQueue };
+queueEvents.on('completed', ({ jobId }) => {
+  logger.info(`Scraping job ${jobId} completed`);
+});
 
+queueEvents.on('failed', ({ jobId, failedReason }) => {
+  logger.error(`Scraping job ${jobId} failed: ${failedReason}`);
+});
+
+queueEvents.on('progress', ({ jobId, data }) => {
+  logger.debug(`Scraping job ${jobId} progress: ${JSON.stringify(data)}`);
+});
+
+process.on('SIGTERM', async () => {
+  await scrapingQueue.close();
+  await queueEvents.close();
+});

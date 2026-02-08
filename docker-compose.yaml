@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,7 +24,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -50,11 +50,11 @@ services:
     container_name: sentinelle-api
     ports:
       - "5001:5001"
-    environment:
+    environment: &api-env
       NODE_ENV: development
       PORT: 5001
       API_VERSION: v1
-    
+
       # Database
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinelle
       # Redis
@@ -87,32 +87,29 @@ services:
       AWS_SECRET_ACCESS_KEY: dev_placeholder
       AWS_S3_BUCKET: dev-bucket
       AWS_REGION: eu-west-1
-    
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
-  
-  workers:
+
+  scrapers:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.workers
+      dockerfile: infrastructure/docker/Dockerfile.api
       target: runner
-    container_name: sentinelle-workers
+    container_name: sentinelle-scrapers
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinelle
-      REDIS_URL: redis://redis:6379
-      AI_SERVICE_URL: http://ai-service:8000
+      <<: *api-env
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
-  
+
   ai-service:
     build:
       context: .

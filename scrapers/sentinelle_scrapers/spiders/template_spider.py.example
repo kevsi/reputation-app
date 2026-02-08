@@ -1,0 +1,55 @@
+import scrapy
+from datetime import datetime
+from sentinelle_scrapers.items import MentionItem
+
+class TemplateSpider(scrapy.Spider):
+    """
+    Template pour créer un nouveau spider de collecte.
+    Remplacer 'template' par le nom de votre plateforme.
+    """
+    name = "template"
+    allowed_domains = ["example.com"]
+    
+    def __init__(self, target_id=None, source_id=None, *args, **kwargs):
+        super(TemplateSpider, self).__init__(*args, **kwargs)
+        self.target_id = target_id
+        self.source_id = source_id
+        self.start_urls = [f"https://www.example.com/search?q={target_id}"]
+
+    def parse(self, response):
+        """
+        Logique d'extraction des données.
+        """
+        # 1. Sélectionner les éléments (ex: cards, rows)
+        cards = response.css('.mention-card')
+        
+        for card in cards:
+            # 2. Extraire les données brutes
+            external_id = card.css('::attr(id)').get()
+            author = card.css('.author-name::text').get()
+            text = card.css('.content-text::text').get()
+            
+            # 3. Créer l'item standardisé
+            item = MentionItem()
+            item['external_id'] = external_id
+            item['source_id'] = self.source_id
+            item['platform'] = self.name
+            item['author'] = author.strip() if author else 'Anonymous'
+            item['content'] = text.strip() if text else ''
+            item['url'] = response.urljoin(card.css('a.link::attr(href)').get())
+            
+            # Dates au format ISO
+            item['published_at'] = card.css('time::attr(datetime)').get()
+            item['scraped_at'] = datetime.now().isoformat()
+            
+            # Métadonnées spécifiques
+            item['metadata'] = {
+                "raw_id": external_id
+            }
+            
+            yield item
+
+        # 4. Gérer la pagination
+        next_page = response.css('a.next::attr(href)').get()
+        if next_page:
+            yield response.follow(next_page, self.parse)

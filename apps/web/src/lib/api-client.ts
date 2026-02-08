@@ -67,7 +67,7 @@ class ApiClient {
     ): Promise<ApiResponse<T>> {
         const url = `${this.baseUrl}${endpoint}`;
         const cacheKey = `${options.method || 'GET'}:${endpoint}`;
-        
+
         // Pour les GET, vérifier le cache d'abord
         if (!options.method || options.method === 'GET') {
             const cached = this.cache.get(cacheKey);
@@ -122,8 +122,15 @@ class ApiClient {
 
             // Vérifier si la réponse est un succès
             if (!response.ok) {
+                // Gestion du Refresh Token si 401
+                if (response.status === 401 && this.token) {
+                    // Appel à une fonction de refresh (placeholder)
+                    // const refreshed = await this.refreshToken();
+                    // if (refreshed) return this.request<T>(endpoint, options, attemptNumber);
+                }
+
                 const shouldRetry = ApiErrorHandler.isRetryable(response.status) &&
-                                   attemptNumber < this.retryConfig.maxRetries;
+                    attemptNumber < this.retryConfig.maxRetries;
 
                 if (shouldRetry) {
                     // If server provided a Retry-After header, honor it

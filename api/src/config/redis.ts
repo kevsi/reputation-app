@@ -4,7 +4,7 @@ import { Logger } from '../shared/logger';
 
 export type RedisClient = ReturnType<typeof createClient>;
 
-let redisClient: RedisClient | null = null;
+export let redisClient: RedisClient | null = null;
 
 export const getRedisClient = async (): Promise<RedisClient> => {
   if (redisClient && redisClient.isOpen) {
@@ -45,6 +45,13 @@ export const disconnectRedis = async (): Promise<void> => {
     await redisClient.quit();
     redisClient = null;
   }
+};
+
+// Export pour BullMQ (format IORedis compatible)
+export const redisConnection = {
+  host: config.REDIS_HOST,
+  port: config.REDIS_PORT,
+  password: config.REDIS_PASSWORD || undefined
 };
 
 // Graceful shutdown

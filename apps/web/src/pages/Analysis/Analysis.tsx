@@ -1,157 +1,190 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PeriodSelector } from "@/components/analysis/PeriodSelector";
 import { AIInsights } from "@/components/analysis/AIInsights";
 import { SentimentAnalysis } from "@/components/analysis/SentimentAnalysis";
-import { SentimentTimeline } from "@/components/analysis/SentimentTimeline";
-import { TrendingKeywords } from "@/components/analysis/TrendingKeywords";
-import { ActiveInfluencers } from "@/components/analysis/ActiveInfluencers";
-import { SourcesBreakdown } from "@/components/analysis/SourcesBreakdown";
-import { Filter, BarChart3, Save, Download, TrendingUp, AlertTriangle, Lightbulb } from "lucide-react";
+import { analyticsService } from "@/services/analytics.service";
+import {
+  Filter, BarChart3, Save, Download, TrendingUp,
+  AlertTriangle, Lightbulb, Loader2, AlertCircle, RefreshCw
+} from "lucide-react";
 import { usePlan } from "@/hooks/usePlan";
-
-// Data
-const aiInsightsData = [
-  {
-    type: "positive" as const,
-    title: "Tendance positive",
-    description: "Le sentiment a augmenté de 12% cette semaine, principalement grâce aux mentions de #qualité",
-    icon: TrendingUp
-  },
-  {
-    type: "warning" as const,
-    title: "Attention requise",
-    description: "Pic de mentions négatives détecté hier concernant le service client",
-    icon: AlertTriangle
-  },
-  {
-    type: "neutral" as const,
-    title: "Opportunité",
-    description: "Le hashtag #innovation gagne en popularité, considérez une campagne ciblée",
-    icon: Lightbulb
-  }
-];
-
-const sentimentData = [
-  { label: "Très positif", percentage: 35, color: "#22c55e" },
-  { label: "Positif", percentage: 28, color: "#86efac" },
-  { label: "Neutre", percentage: 22, color: "#94a3b8" },
-  { label: "Négatif", percentage: 10, color: "#fca5a5" },
-  { label: "Très négatif", percentage: 5, color: "#ef4444" }
-];
-
-const timelineData = [
-  { date: "Lun", positive: 45, neutral: 30, negative: 15 },
-  { date: "Mar", positive: 52, neutral: 28, negative: 12 },
-  { date: "Mer", positive: 48, neutral: 32, negative: 18 },
-  { date: "Jeu", positive: 60, neutral: 25, negative: 10 },
-  { date: "Ven", positive: 55, neutral: 30, negative: 12 },
-  { date: "Sam", positive: 50, neutral: 28, negative: 15 },
-  { date: "Dim", positive: 58, neutral: 27, negative: 11 }
-];
-
-const keywordsData = [
-  { tag: "#qualité", mentions: 456, trend: "up" as const },
-  { tag: "#service", mentions: 389, trend: "up" as const },
-  { tag: "#innovation", mentions: 312, trend: "up" as const },
-  { tag: "#prix", mentions: 287, trend: "down" as const },
-  { tag: "#design", mentions: 245, trend: "up" as const }
-];
-
-const influencersData = [
-  { username: "@tech_reviewer", mentions: 24, followers: "125K", sentiment: "Positif" as const },
-  { username: "@lifestyle_blog", mentions: 18, followers: "98K", sentiment: "Positif" as const },
-  { username: "@consumer_watch", mentions: 15, followers: "76K", sentiment: "Neutre" as const },
-  { username: "@digital_trends", mentions: 12, followers: "89K", sentiment: "Positif" as const }
-];
-
-const sourcesData = [
-  { name: "Twitter/X", icon: "❌", mentions: 2845, percentage: 32, trend: "+12%", sentiment: 68, color: "#000000" },
-  { name: "Instagram", icon: "📷", mentions: 2156, percentage: 24, trend: "+8%", sentiment: 75, color: "#E4405F" },
-  { name: "Facebook", icon: "📘", mentions: 1823, percentage: 20, trend: "-3%", sentiment: 62, color: "#1877F2" },
-  { name: "Reddit", icon: "🔴", mentions: 1245, percentage: 14, trend: "+15%", sentiment: 58, color: "#FF4500" },
-  { name: "LinkedIn", icon: "💼", mentions: 892, percentage: 10, trend: "+5%", sentiment: 71, color: "#0A66C2" }
-];
+import { useBrand } from "@/contexts/BrandContext";
+import { useBrandListener } from "@/hooks/useBrandListener";
+import { isApiError } from "@/types/http";
+import { ApiErrorHandler } from "@/lib/api-error-handler";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function AnalysisPage() {
-  const [_selectedPeriod, setSelectedPeriod] = useState("30j");
+  const { selectedBrand } = useBrand();
   const { hasFeature } = usePlan();
+
+  // State
+  const [selectedPeriod, setSelectedPeriod] = useState("30j");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<any>({
+    sentiment: null,
+    sentimentChart: [],
+    insights: []
+  });
+
+  const getDateRange = useCallback(() => {
+    const end = new Date();
+    const start = new Date();
+    if (selectedPeriod === '7j') start.setDate(end.getDate() - 7);
+    else if (selectedPeriod === '30j') start.setDate(end.getDate() - 30);
+    else if (selectedPeriod === '90j') start.setDate(end.getDate() - 90);
+    else if (selectedPeriod === '1y') start.setFullYear(end.getFullYear() - 1);
+
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }, [selectedPeriod]);
+
+  const fetchAnalysis = useCallback(async () => {
+    if (!selectedBrand || !hasFeature('analysis')) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const { startDate, endDate } = getDateRange();
+      const response = await analyticsService.getSentimentBreakdown(selectedBrand.id, startDate, endDate);
+
+      if (!isApiError(response)) {
+        const s = response.data;
+        const total = s.positive + s.negative + s.neutral + s.mixed;
+        const pc = (v: number) => total > 0 ? Math.round((v / total) * 100) : 0;
+
+        const sentimentChart = [
+          { label: "Positif", percentage: pc(s.positive), color: "#22c55e" },
+          { label: "Neutre", percentage: pc(s.neutral + s.mixed), color: "#94a3b8" },
+          { label: "Négatif", percentage: pc(s.negative), color: "#ef4444" }
+        ];
+
+        const insights = [
+          {
+            type: s.positive > total * 0.5 ? "positive" : s.negative > total * 0.3 ? "warning" : "neutral",
+            title: s.positive > total * 0.5 ? "Excellente réputation" : s.negative > total * 0.3 ? "Risque réputationnel" : "Stabilité",
+            description: s.positive > total * 0.5
+              ? "Votre marque bénéficie d'une forte adhésion positive ce mois-ci."
+              : s.negative > total * 0.3
+                ? "Plusieurs mentions négatives nécessitent votre attention immédiate."
+                : "Le sentiment global reste équilibré sans pic inhabituel.",
+            icon: s.positive > total * 0.5 ? TrendingUp : s.negative > total * 0.3 ? AlertTriangle : Lightbulb
+          }
+        ];
+
+        setData({ sentiment: s, sentimentChart, insights });
+      } else {
+        setError(ApiErrorHandler.getUserMessage(response.error));
+      }
+    } catch (err) {
+      setError("Impossible d'analyser les données");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedBrand, hasFeature, getDateRange]);
+
+  useEffect(() => {
+    fetchAnalysis();
+  }, [fetchAnalysis]);
+
+  useBrandListener(async () => {
+    await fetchAnalysis();
+  });
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-            Analysis
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Analyse approfondie de votre présence en ligne
-          </p>
+      <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Analyse</h1>
+            <p className="text-muted-foreground mt-1">Intelligence artificielle et tendances de sentiment</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchAnalysis} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Actualiser
+            </Button>
+            <Button size="sm" className="gap-2">
+              <Download className="w-4 h-4" /> Exporter le rapport
+            </Button>
+          </div>
         </div>
 
-        {/* Period Selector */}
-        <div className="mb-6">
+        <div className="mb-8">
           <PeriodSelector onPeriodChange={setSelectedPeriod} />
         </div>
 
-        {/* Action Buttons */}
-        {hasFeature('analysis') && (
-          <div className="flex flex-wrap gap-3 mb-6">
-            <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-              <Filter className="w-4 h-4" />
-              Filtres avancés
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-              <BarChart3 className="w-4 h-4" />
-              Comparer
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-              <Save className="w-4 h-4" />
-              Sauvegarder vue
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              <Download className="w-4 h-4" />
-              Exporter
-            </button>
-          </div>
+        {error && (
+          <Alert variant="destructive" className="mb-8">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        {/* Content */}
-        {hasFeature('analysis') ? (
-          <div className="space-y-6">
-            {/* AI Insights */}
-            <AIInsights insights={aiInsightsData} />
-
-            {/* Sentiment Analysis + Timeline */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <SentimentAnalysis data={sentimentData} totalPositive={78} />
-              <SentimentTimeline data={timelineData} evolution="+12.5%" isPositive={true} />
-            </div>
-
-            {/* Keywords + Influencers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <TrendingKeywords keywords={keywordsData} />
-              <ActiveInfluencers influencers={influencersData} />
-            </div>
-
-            {/* Sources Breakdown */}
-            <SourcesBreakdown sources={sourcesData} />
+        {!hasFeature('analysis') ? (
+          <div className="py-20 text-center bg-card border border-border rounded-3xl">
+            <BarChart3 className="w-16 h-16 text-primary/20 mx-auto mb-6" />
+            <h2 className="text-2xl font-bold mb-3">Analyse Premium</h2>
+            <p className="text-muted-foreground max-w-md mx-auto mb-8">
+              Passez au plan Professionnel pour débloquer l'analyse de sentiment IA, les tendances et les rapports personnalisés.
+            </p>
+            <Button size="lg" className="rounded-full px-8">Mettre à niveau</Button>
+          </div>
+        ) : loading ? (
+          <div className="py-20 text-center">
+            <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary mb-4" />
+            <p className="text-muted-foreground animate-pulse">Calcul des insights en cours...</p>
           </div>
         ) : (
-          <div className="text-center py-12">
-            <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              Analyse avancée non disponible
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              Mettez à niveau votre plan pour accéder aux analyses approfondies et aux insights IA.
-            </p>
-            <button className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity">
-              Mettre à niveau
-            </button>
+          <div className="space-y-8">
+            {data.insights.length > 0 && <AIInsights insights={data.insights} />}
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              <SentimentAnalysis
+                data={data.sentimentChart}
+                totalPositive={data.sentiment?.positive || 0}
+              />
+              <Card className="flex flex-col justify-center items-center p-8 border-dashed">
+                <TrendingUp className="w-12 h-12 text-muted-foreground opacity-10 mb-4" />
+                <p className="text-muted-foreground text-sm">Données temporelles en cours de consolidation...</p>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="p-6 bg-card border border-border rounded-2xl">
+                <h3 className="font-bold mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" /> Mots-clés émergents
+                </h3>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Analyse des hashtags et mots-clés les plus fréquents.</p>
+                  <div className="h-40 flex items-center justify-center border border-border border-dashed rounded-xl grayscale opacity-50">
+                    Bientôt disponible
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 bg-card border border-border rounded-2xl">
+                <h3 className="font-bold mb-4 flex items-center gap-2">
+                  <Save className="w-4 h-4 text-primary" /> Sources de trafic
+                </h3>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Distribution géographique et par plateforme.</p>
+                  <div className="h-40 flex items-center justify-center border border-border border-dashed rounded-xl grayscale opacity-50">
+                    Bientôt disponible
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+// Helpers
+function Card({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <div className={`bg-card border border-border rounded-2xl ${className}`}>{children}</div>;
 }

@@ -4,7 +4,7 @@ import { validate } from '@/shared/middleware/validate.middleware';
 import { requireAuth, requireRole } from '@/shared/middleware/auth.middleware';
 import { createUserSchema, updateUserSchema } from '@/shared/validators/schemas';
 
-const router = Router();
+const router: Router = Router();
 
 // Toutes les routes users nécessitent d'être connecté
 router.use(requireAuth);

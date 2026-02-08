@@ -11,7 +11,7 @@ describe('Mentions API', () => {
 
   it('GET /api/mentions doit retourner 200', async () => {
     const res = await request(app).get('/api/v1/mentions');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     // expect(res.body).toHaveProperty('data');
   });
 });

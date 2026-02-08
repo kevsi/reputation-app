@@ -1,73 +1,73 @@
-// src/modules/sources/sources.routes.ts
-
-import { Router } from 'express';
-import { sourcesController } from './sources.controller';
-import { requireAuth } from '@/shared/middleware/auth.middleware';
-
 /**
- * 🛣️ Routes Sources
- * 
- * Définit toutes les routes HTTP pour les sources
+ * Routes Sources
+ * Conforme à PROMPT_AGENT_IA_PRECISION_MAXIMALE.md
  */
-const router = Router();
+import { Router } from 'express';
+import { SourcesController } from './sources.controller';
+import { requireAuth } from '@/shared/middleware/auth.middleware';
+import { requireOwnership } from '@/shared/middleware/ownership.middleware';
+import { validate } from '@/shared/middleware/validate.middleware';
+import {
+  createSourceSchema,
+  updateSourceSchema,
+  updateStatusSchema,
+} from './sources.validation';
 
-// Toutes les routes nécessitent une authentification
+const router = Router();
+const controller = new SourcesController();
+
 router.use(requireAuth);
 
 /**
- * GET /api/v1/sources
- * Récupère toutes les sources
+ * GET /api/v1/sources/:sourceId
+ * Récupérer une source par ID
  */
-router.get('/', sourcesController.getAllSources.bind(sourcesController));
+router.get(
+  '/:sourceId',
+  requireOwnership('source', 'sourceId'),
+  controller.getById
+);
 
 /**
- * GET /api/v1/sources/active
- * Récupère uniquement les sources actives
- * 
- * ⚠️ IMPORTANT : Cette route doit être AVANT /:id
+ * PATCH /api/v1/sources/:sourceId
+ * Mettre à jour une source
  */
-router.get('/active', sourcesController.getActiveSources.bind(sourcesController));
+router.patch(
+  '/:sourceId',
+  requireOwnership('source', 'sourceId'),
+  validate(updateSourceSchema),
+  controller.update
+);
 
 /**
- * POST /api/v1/sources/test
- * Teste la connexion à une plateforme
+ * DELETE /api/v1/sources/:sourceId
+ * Supprimer une source (soft delete)
  */
-router.post('/test', sourcesController.testConnection.bind(sourcesController));
+router.delete(
+  '/:sourceId',
+  requireOwnership('source', 'sourceId'),
+  controller.delete
+);
 
 /**
- * GET /api/v1/sources/:id
- * Récupère une source par son ID
+ * PATCH /api/v1/sources/:sourceId/status
+ * Changer le statut d'une source
  */
-router.get('/:id', sourcesController.getSourceById.bind(sourcesController));
+router.patch(
+  '/:sourceId/status',
+  requireOwnership('source', 'sourceId'),
+  validate(updateStatusSchema),
+  controller.updateStatus
+);
 
 /**
- * POST /api/v1/sources/:id/scrape-now
- * Déclenche un scraping immédiat
+ * POST /api/v1/sources/:sourceId/scrape
+ * Déclencher un scraping manuel
  */
-router.post('/:id/scrape-now', sourcesController.scrapeNow.bind(sourcesController));
-
-/**
- * POST /api/v1/sources
- * Crée une nouvelle source avec validation credentials
- */
-router.post('/', sourcesController.createSource.bind(sourcesController));
-
-/**
- * PATCH /api/v1/sources/:id
- * Met à jour une source
- */
-router.patch('/:id', sourcesController.updateSource.bind(sourcesController));
-
-/**
- * DELETE /api/v1/sources/:id
- * Supprime une source
- */
-router.delete('/:id', sourcesController.deleteSource.bind(sourcesController));
-
-/**
- * DELETE /api/v1/sources/:id
- * Supprime une source
- */
-router.delete('/:id', sourcesController.deleteSource.bind(sourcesController));
+router.post(
+  '/:sourceId/scrape',
+  requireOwnership('source', 'sourceId'),
+  controller.triggerScraping
+);
 
 export default router;

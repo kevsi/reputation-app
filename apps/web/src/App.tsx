@@ -11,7 +11,7 @@ import './global.css';
 import Layout from '@/components/layout/Layout';
 import Dashboard from '@/pages/Dashboard/Dashboard';
 import Mentions from '@/pages/Mentions/Mentions';
-import DemoMentions from '@/pages/DemoMentions/DemoMentions';
+
 import Alerts from '@/pages/Alerts/Alerts';
 import Analysis from '@/pages/Analysis/Analysis';
 import Reports from '@/pages/Reports/Reports';
@@ -68,9 +68,6 @@ createRoot(document.getElementById('root')!).render(
           <OnboardingProvider>
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <Routes>
-                {/* Routes publiques */}
-                <Route path="/demo/mentions" element={<DemoMentions />} />
-
                 {/* Routes d'authentification (avec AuthLayout) */}
                 <Route element={<AuthLayout />}>
                   <Route path="/signin" element={<SignInPage />} />

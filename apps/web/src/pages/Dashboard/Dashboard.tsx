@@ -1,27 +1,37 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LineChart } from "@/components/dashboard/LineChart";
 import BarChart from "@/components/dashboard/BarChart";
 import ActivityChart from "@/components/dashboard/ActivityChart";
 import DonutChart from "@/components/dashboard/DonutChart";
-import { apiClient } from "@/lib/api-client";
+import { dashboardService } from "@/services/dashboard.service";
+import { analyticsService } from "@/services/analytics.service";
+import { alertsService } from "@/services/alerts.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand } from "@/contexts/BrandContext";
 import { useBrandListener } from "@/hooks/useBrandListener";
-import { Loader2, AlertCircle } from "lucide-react";
-import { DashboardStats, DashboardAlert } from "@/types/api";
+import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { DashboardStats, AlertDetail } from "@/types/api";
 import { isApiError } from "@/types/http";
+import { ApiErrorHandler } from "@/lib/api-error-handler";
+import { Button } from "@/components/ui/button";
 
-interface DashboardData {
+interface DashboardState {
   stats: DashboardStats | null;
-  alerts: DashboardAlert[];
+  alerts: AlertDetail[];
+  reputationScore: number;
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const { user } = useAuth();
   const { selectedBrand } = useBrand();
-  const [data, setData] = useState<DashboardData>({ stats: null, alerts: [] });
+
+  // State
+  const [data, setData] = useState<DashboardState>({
+    stats: null,
+    alerts: [],
+    reputationScore: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,36 +44,37 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
-      
-      const endDate = new Date().toISOString();
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const [statsRes, alertsRes] = await Promise.all([
-        apiClient.getAnalyticsSummary({
-          brandId: selectedBrand.id,
-          startDate,
-          endDate
-        }),
-        apiClient.getAlerts({ brandId: selectedBrand.id })
+        analyticsService.getSummary(selectedBrand.id),
+        alertsService.getAll(selectedBrand.id)
       ]);
 
-      const statsData: DashboardStats | null = isApiError(statsRes)
-        ? null
-        : (statsRes.data as DashboardStats | undefined) ?? null;
-      
-      const alertsData: DashboardAlert[] = isApiError(alertsRes)
-        ? []
-        : Array.isArray(alertsRes.data)
-          ? (alertsRes.data as DashboardAlert[])
-          : [];
+      let stats: DashboardStats | null = null;
+      if (!isApiError(statsRes)) {
+        stats = statsRes.data as any;
+      }
+
+      let alerts: AlertDetail[] = [];
+      if (!isApiError(alertsRes)) {
+        alerts = alertsRes.data;
+      }
+
+      // Calcul du score de réputation localement
+      const totalMentions = stats?.totalMentions ?? 0;
+      const sentimentScore = stats?.sentimentScore ?? 0;
+      const repScore = Math.round(
+        (Math.max(0, Math.min(sentimentScore, 1)) * 80) +
+        (Math.min(Math.log(totalMentions + 1), 5) / 5 * 20)
+      );
 
       setData({
-        stats: statsData,
-        alerts: alertsData
+        stats,
+        alerts,
+        reputationScore: repScore
       });
     } catch (err) {
-      console.error('Dashboard error:', err);
-      setError('Une erreur est survenue lors du chargement du tableau de bord');
+      setError("Impossible de charger les données du tableau de bord");
     } finally {
       setLoading(false);
     }
@@ -73,116 +84,106 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Écouter les changements de brand
   useBrandListener(async () => {
     await fetchDashboardData();
   });
 
-  if (loading && !error) {
+  if (loading && !data.stats) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background h-full min-h-[500px]">
+      <div className="flex-1 flex items-center justify-center bg-background min-h-[500px]">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground animate-pulse">Chargement de votre tableau de bord...</p>
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">Initialisation de votre espace...</p>
         </div>
       </div>
     );
   }
 
-  if (error && !selectedBrand) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-background h-full min-h-[500px]">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <AlertCircle className="w-8 h-8 text-destructive" />
-          <div>
-            <p className="text-sm font-semibold text-foreground">Erreur</p>
-            <p className="text-sm text-muted-foreground mt-1">{error}</p>
-          </div>
-          <button
-            onClick={() => fetchDashboardData()}
-            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
-          >
-            Réessayer
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const { stats, alerts } = data;
-
-  const totalMentions = stats?.totalMentions ?? 0;
-  const sentimentScore = stats?.sentimentScore ?? 0;
-  const activeAlerts = alerts.filter(a => a.status === 'ACTIVE' || a.status === 'PENDING').length;
-
-  // Score de réputation (0-100)
-  const reputationScore = Math.round(
-    (Math.max(0, Math.min(sentimentScore, 1)) * 80) + 
-    (Math.min(Math.log(totalMentions + 1), 5) / 5 * 20)
-  );
+  const { stats, alerts, reputationScore } = data;
+  const activeAlerts = alerts.filter(a => a.status !== 'RESOLVED').length;
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
       <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Aperçu général</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Bienvenue sur votre tableau de bord, {user?.name}.
+            <h1 className="text-2xl md:text-4xl font-bold tracking-tight">Tableau de bord</h1>
+            <p className="text-muted-foreground mt-2">
+              Ravi de vous revoir, <span className="text-foreground font-medium">{user?.name}</span>.
+              Voici l'état de la marque <span className="text-primary font-semibold">{selectedBrand?.name}</span>.
             </p>
           </div>
-          <select className="px-4 py-2 border border-border rounded-lg text-sm w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-ring bg-card text-foreground">
-            <option>Derniers 30 jours</option>
-            <option>Aujourd'hui</option>
-            <option>Cette semaine</option>
-            <option>Cette année</option>
-          </select>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            title="Mentions totales"
-            value={totalMentions.toLocaleString()}
-            change="+11.0%"
-            trend="up"
-          />
-          <StatCard
-            title="Sentiment global"
-            value={`${Math.round(sentimentScore * 100)}%`}
-            change={sentimentScore > 0.5 ? "+2.4%" : "-1.2%"}
-            trend={sentimentScore > 0.5 ? "up" : "down"}
-          />
-          <StatCard
-            title="Alertes actives"
-            value={activeAlerts.toString()}
-            className={activeAlerts > 0 ? "border-amber-200 bg-amber-50/50" : ""}
-          />
-          <StatCard
-            title="Score de réputation"
-            value={reputationScore.toLocaleString()}
-            change="+5.2%"
-            trend="up"
-          />
-        </div>
-
-        {/* Charts Section */}
-        <div className="space-y-6">
-          {/* Ligne 1 : LineChart (2 cols) + BarChart (1 col) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <LineChart />
-            </div>
-            <div className="lg:col-span-1">
-              <BarChart />
-            </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={fetchDashboardData} className="rounded-full shadow-sm">
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Actualiser
+            </Button>
+            <Button size="sm" className="rounded-full shadow-md bg-primary hover:bg-primary/90">
+              Générer rapport
+            </Button>
           </div>
+        </div>
 
-          {/* Ligne 2 : ActivityChart + DonutChart */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ActivityChart />
+        {error && (
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-2xl text-destructive text-sm flex items-center gap-3 mb-8">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            title="Mentions"
+            value={(stats?.totalMentions ?? 0).toLocaleString()}
+            change={stats?.mentionTrend ? `${stats.mentionTrend > 0 ? '+' : ''}${stats.mentionTrend}%` : undefined}
+            trend={stats?.mentionTrend && stats.mentionTrend > 0 ? "up" : "down"}
+          />
+          <StatCard
+            title="Sentiment"
+            value={`${Math.round((stats?.sentimentScore ?? 0) * 100)}%`}
+            change={stats?.sentimentTrend ? `${stats.sentimentTrend > 0 ? '+' : ''}${stats.sentimentTrend}%` : undefined}
+            trend={stats?.sentimentTrend && stats.sentimentTrend > 0 ? "up" : "down"}
+          />
+          <StatCard
+            title="Alertes"
+            value={activeAlerts.toString()}
+            className={activeAlerts > 0 ? "border-amber-500/50 bg-amber-500/5" : ""}
+          />
+          <StatCard
+            title="Réputation"
+            value={`${reputationScore}/100`}
+            trend="up"
+          />
+        </div>
+
+        {/* Visualizations Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2 bg-card border border-border rounded-3xl p-6 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg">Évolution des mentions</h3>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <div className="w-2 h-2 rounded-full bg-primary" /> Volume
+                </div>
+              </div>
+            </div>
+            <LineChart />
+          </div>
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-6">Sources d'influence</h3>
+            <BarChart />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-6">Mentions par plateforme</h3>
             <DonutChart />
+          </div>
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-6">Intensité de l'activité</h3>
+            <ActivityChart />
           </div>
         </div>
       </div>

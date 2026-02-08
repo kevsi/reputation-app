@@ -13,7 +13,7 @@ export interface RetryConfig {
 }
 
 export const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 5,
+  maxRetries: 3,
   baseDelay: 1000,
   maxDelay: 10000,
   backoffMultiplier: 2,
@@ -40,9 +40,10 @@ export class ApiErrorHandler {
    * Détermine si une erreur peut être retry
    */
   static isRetryable(status: number): boolean {
-    // Retry on 5xx, timeouts and rate-limit (429).
-    // 4xx client errors are generally not retried except 429 which signals retry later.
-    return status >= 500 || status === 0 || status === 429; // 0 = timeout/network
+    // Retry on 5xx and timeouts only
+    // Do NOT retry on 429 (rate limit) - backing off won't help
+    // Do NOT retry on 4xx client errors
+    return status >= 500 || status === 0; // 0 = timeout/network
   }
 
   /**

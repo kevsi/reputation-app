@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { analyticsController } from './analytics.controller';
 import { requireAuth } from '@/shared/middleware/auth.middleware';
 
-const router = Router();
+const router: Router = Router();
 
 // Routes Analytics avancées
 router.get('/summary', requireAuth, analyticsController.getSummary.bind(analyticsController));
@@ -11,3 +11,4 @@ router.get('/time-series', requireAuth, analyticsController.getTimeSeries.bind(a
 router.get('/word-cloud', requireAuth, analyticsController.getWordCloud.bind(analyticsController));
 
 export default router;
+

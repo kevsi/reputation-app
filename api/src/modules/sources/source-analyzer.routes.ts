@@ -16,7 +16,7 @@ export function createSourceAnalyzerRoutes(
   prisma: PrismaClient,
   logger: Logger
 ): Router {
-  const router = Router();
+  const router: Router = Router();
   const controller = new SourceAnalyzerController(prisma, logger);
 
   // GET /api/sources/analyze-docs - Documentation
@@ -35,3 +35,4 @@ export function createSourceAnalyzerRoutes(
 }
 
 export default createSourceAnalyzerRoutes;
+

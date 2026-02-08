@@ -1,62 +1,61 @@
-import { SourceType } from '@sentinelle/database';
-
 /**
- * 📋 Représente une source d'information
+ * Types pour le module Sources
+ * Conforme à PROMPT_AGENT_IA_PRECISION_MAXIMALE.md
  */
-export interface Source {
-  id: string;
-  name: string;
-  url?: string | null;
+
+export type SourceType =
+  | 'GOOGLE_REVIEWS'
+  | 'TRUSTPILOT'
+  | 'TRIPADVISOR'
+  | 'FACEBOOK'
+  | 'TWITTER'
+  | 'INSTAGRAM'
+  | 'NEWS'
+  | 'RSS'
+  | 'REDDIT'
+  | 'YOUTUBE';
+
+export type SourceStatus = 'ACTIVE' | 'PAUSED' | 'ERROR' | 'RATE_LIMITED' | 'DELETED';
+
+export type ScrapingFrequency =
+  | 'REALTIME'
+  | 'EVERY_15_MIN'
+  | 'HOURLY'
+  | 'EVERY_6_HOURS'
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'MONTHLY';
+
+export interface SourceConfig {
+  placeId?: string;
+  googleApiKey?: string;
+  companyUrl?: string;
+  maxPages?: number;
+  username?: string;
+  hashtags?: string[];
+  twitterBearerToken?: string;
+  keywords?: string[];
+  language?: string;
+  newsApiKey?: string;
+  feedUrl?: string;
+  subreddits?: string[];
+  redditClientId?: string;
+  redditClientSecret?: string;
+  maxResults?: number;
+  includeReplies?: boolean;
+  minRating?: number;
+}
+
+export interface CreateSourceDTO {
   type: SourceType;
-  isActive: boolean;
-  brandId: string;
-  createdAt: Date;
-  updatedAt: Date;
-  brand?: any;
-}
-
-/**
- * 📤 Format de réponse de l'API pour plusieurs sources
- */
-export interface SourcesResponse {
-  success: boolean;
-  data: any[];
-  count: number;
-}
-
-/**
- * 📤 Format de réponse de l'API pour une seule source
- */
-export interface SourceResponse {
-  success: boolean;
-  data: any;
-}
-
-/**
- * 📥 Données pour créer une nouvelle source
- */
-export interface CreateSourceInput {
   name: string;
-  url?: string;
-  type: string;
-  isActive?: boolean;
-  brandId: string;
+  config: SourceConfig;
+  scrapingFrequency?: ScrapingFrequency;
 }
 
-/**
- * 📝 Données pour mettre à jour une source
- */
-export interface UpdateSourceInput {
+export interface UpdateSourceDTO {
   name?: string;
-  url?: string;
-  type?: string;
-  isActive?: boolean;
-}
-
-/**
- * 📤 Réponse après suppression
- */
-export interface DeleteResponse {
-  success: boolean;
-  message: string;
+  config?: Partial<SourceConfig>;
+  scrapingFrequency?: ScrapingFrequency;
+  status?: SourceStatus;
 }

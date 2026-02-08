@@ -6,8 +6,7 @@
         "api",
         "apps/*",
         "database",
-        "shared",
-        "workers"
+        "shared"
     ],
     "scripts": {
         "dev": "turbo run dev",

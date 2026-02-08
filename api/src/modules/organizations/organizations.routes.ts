@@ -8,7 +8,7 @@ import { createOrganizationSchema, updateOrganizationSchema } from '../../shared
  * 
  * Définit les endpoints HTTP pour gérer les organizations
  */
-const router = Router();
+const router: Router = Router();
 
 /**
  * @route   GET /api/v1/organizations

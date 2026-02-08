@@ -11,7 +11,14 @@ ENV NODE_ENV=production \
 RUN apt-get update && apt-get install -y \
     openssl \
     ca-certificates \
+    python3 \
+    python3-pip \
+    libpq-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
+
+# Installer Scrapy globalement pour le container
+RUN pip3 install --no-cache-dir --break-system-packages scrapy requests python-dotenv psycopg2-binary
 
 # ===============================
 # Stage 1: Install ALL deps (build)
@@ -22,7 +29,6 @@ ENV NODE_ENV=development
 COPY package*.json ./
 COPY turbo.json* ./
 COPY api/package*.json ./api/
-COPY workers/package*.json ./workers/
 COPY database/package*.json ./database/
 COPY shared/package*.json ./shared/
 COPY apps/admin/package*.json ./apps/admin/
@@ -44,6 +50,7 @@ COPY api/ ./api/
 COPY database/ ./database/
 COPY shared/ ./shared/
 COPY apps/ ./apps/
+COPY scrapers/ ./scrapers/
 COPY package*.json ./
 COPY turbo.json* ./
 
@@ -69,7 +76,6 @@ RUN groupadd -g 1001 nodejs \
 COPY package*.json ./
 COPY turbo.json* ./
 COPY api/package*.json ./api/
-COPY workers/package*.json ./workers/
 COPY database/package*.json ./database/
 COPY shared/package*.json ./shared/
 COPY apps/admin/package*.json ./apps/admin/
@@ -84,6 +90,7 @@ RUN npm install --omit=dev \
 COPY --from=builder --chown=expressjs:nodejs /app/api/dist ./api/dist
 COPY --from=builder --chown=expressjs:nodejs /app/database ./database
 COPY --from=builder --chown=expressjs:nodejs /app/shared ./shared
+COPY --from=builder --chown=expressjs:nodejs /app/scrapers ./scrapers
 
 # ---- Prisma client runtime (safe)
 WORKDIR /app/database

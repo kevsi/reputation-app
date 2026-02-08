@@ -3,7 +3,7 @@ import { billingController } from './billing.controller';
 import { validate } from '../../shared/middleware/validate.middleware';
 import { subscribeSchema, confirmSubscriptionSchema } from './billing.validation';
 
-const router = Router();
+const router: Router = Router();
 
 // Routes Billing réelles avec validation
 router.get('/plans', billingController.getPlans.bind(billingController));
@@ -13,3 +13,4 @@ router.post('/confirm', validate(confirmSubscriptionSchema), billingController.c
 router.get('/invoices/:subscriptionId', billingController.getInvoices.bind(billingController));
 
 export default router;
+

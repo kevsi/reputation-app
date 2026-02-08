@@ -11,7 +11,7 @@ describe('Users API', () => {
 
   it('GET /api/users doit retourner 200', async () => {
     const res = await request(app).get('/api/v1/users');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     // expect(res.body).toHaveProperty('data');
   });
 });

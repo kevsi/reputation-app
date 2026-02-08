@@ -2,23 +2,19 @@
  * Type definitions for database models
  */
 
-export type SourceType = 
-  | 'FORUM' 
-  | 'BLOG' 
-  | 'NEWS' 
-  | 'REVIEW' 
-  | 'REDDIT' 
-  | 'RSS' 
+export type SourceType =
+  | 'FORUM'
+  | 'BLOG'
+  | 'NEWS'
+  | 'REVIEW'
+  | 'RSS'
   | 'OTHER'
-  // Legacy/closed APIs (disabled in UI)
-  | 'TWITTER' 
-  | 'FACEBOOK' 
-  | 'INSTAGRAM' 
-  | 'LINKEDIN'
   // Deprecated
-  | 'TRUSTPILOT' 
-  | 'GOOGLE_REVIEWS' 
-  | 'YOUTUBE';
+  | 'TRUSTPILOT'
+  | 'GOOGLE_REVIEWS'
+  | 'YOUTUBE'
+  | 'YELP'
+  | 'WEB';
 
 export interface SourceConfig {
   baseUrl?: string;

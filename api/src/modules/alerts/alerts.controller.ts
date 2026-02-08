@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { alertsService } from './alerts.service';
+import { extractPaginationParams } from '@/shared/utils/pagination';
 
 class AlertsController {
     /**
@@ -12,8 +13,11 @@ class AlertsController {
                 res.status(400).json({ success: false, message: 'organizationId is required' });
                 return;
             }
-            const alerts = await alertsService.getAllAlerts(organizationId);
-            res.status(200).json({ success: true, data: alerts });
+
+            const pagination = extractPaginationParams(req.query);
+            const result = await alertsService.getAllAlerts(organizationId, pagination);
+
+            res.status(200).json({ success: true, ...result });
         } catch (error) {
             next(error);
         }

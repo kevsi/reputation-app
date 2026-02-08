@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import { config } from './config/app';
 import { errorHandler, notFoundHandler } from '@/shared/middleware/error.middleware';
 import { logger } from './infrastructure/logger';
@@ -28,6 +27,10 @@ import notificationsRoutes from './modules/notifications/notifications.routes';
 export const createApp = (): Application => {
   const app = express();
 
+  // ===== Monitoring =====
+  const { initMonitoring } = require('@/infrastructure/monitoring/prometheus');
+  initMonitoring(app);
+
   // ===== Security & Basic Middleware =====
 
   // Helmet pour sécuriser les headers HTTP
@@ -44,21 +47,9 @@ export const createApp = (): Application => {
   // Compression des réponses
   app.use(compression() as any);
 
-  // Rate limiting
-  const limiter = rateLimit({
-    windowMs: config.RATE_LIMIT_WINDOW_MS,
-    max: config.RATE_LIMIT_MAX_REQUESTS,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: 'Too many requests, please try again later'
-      }
-    }
-  });
-  app.use(limiter);
+  // Rate limiting (Redis-backed)
+  const { userRateLimiter } = require('@/shared/middleware/rate-limit.middleware');
+  app.use(userRateLimiter);
 
   // Parse JSON bodies
   app.use(express.json({ limit: '10mb' }));
@@ -111,6 +102,23 @@ export const createApp = (): Application => {
         count: mentions.length,
         message: 'Demo endpoint - mentions from database',
         data: mentions
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get('/demo/brands', async (_req: Request, res: Response) => {
+    try {
+      const brands = await prisma.brand.findMany({
+        take: 20
+      });
+      res.json({
+        success: true,
+        data: brands
       });
     } catch (error) {
       res.status(500).json({

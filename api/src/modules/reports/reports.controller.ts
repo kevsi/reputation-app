@@ -1,18 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
 import { reportsService } from './reports.service';
-import { Logger } from '../../shared/logger';
+import { logger } from '@/infrastructure/logger';
+import { extractPaginationParams } from '@/shared/utils/pagination';
 
 class ReportsController {
+    /**
+     * ✅ Récupérer tous les rapports avec pagination
+     */
     async getAllReports(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const organizationId = req.query.organizationId as string;
-            if (!organizationId) {
-                res.status(400).json({ success: false, message: 'organizationId is required' });
+            const user = req.user as any;
+            if (!user || !user.organizationId) {
+                res.status(400).json({ success: false, message: 'Organization ID is required' });
                 return;
             }
-            const reports = await reportsService.getAllReports(organizationId);
-            res.status(200).json({ success: true, data: reports });
+
+            const pagination = extractPaginationParams(req.query);
+            const result = await reportsService.getAllReports(user.organizationId, pagination);
+
+            res.status(200).json({ success: true, ...result });
+            return;
         } catch (error) {
+            logger.error('Error fetching reports:', error);
             next(error);
         }
     }
@@ -38,8 +47,9 @@ class ReportsController {
         try {
             const report = await reportsService.generateInstant(req.body);
             res.status(201).json({ success: true, data: report });
+            return;
         } catch (error) {
-            Logger.error('Erreur lors de la génération d\'un rapport instantané', error as Error, { composant: 'ReportsController', operation: 'generateInstant' });
+            logger.error('Erreur lors de la génération d\'un rapport instantané', error as Error);
             next(error);
         }
     }
@@ -49,9 +59,13 @@ class ReportsController {
             const { id } = req.params;
             await reportsService.deleteReport(id);
             res.status(200).json({ success: true, message: 'Report deleted' });
+            return;
         } catch (error) {
             next(error);
         }
+    }
+    async getScheduledReports(_req: Request, res: Response, _next: NextFunction): Promise<void> {
+        res.status(200).json({ success: true, data: [] });
     }
 }
 

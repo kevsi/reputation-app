@@ -21,7 +21,7 @@ async function main() {
     console.log('🧹 Database cleaned.');
 
     // 2. Create main Admin/Owner user
-    const hashedPassword = await bcrypt.hash('Admin@123!', 10); // Updated to meet strength requirements (uppercase, lowercase, number, special char)
+    const hashedPassword = await bcrypt.hash('password123', 10);
     const adminUser = await prisma.user.create({
         data: {
             email: 'admin@sentinelle.io',

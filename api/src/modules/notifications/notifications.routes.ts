@@ -4,7 +4,7 @@ import { validate } from '../../shared/middleware/validate.middleware';
 import { requireAuth } from '../../shared/middleware/auth.middleware';
 import { updateNotificationPreferenceSchema } from './notifications.validation';
 
-const router = Router();
+const router: Router = Router();
 
 // Toutes les routes nécessitent une authentification
 router.use(requireAuth);

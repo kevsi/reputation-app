@@ -23,6 +23,11 @@ interface MentionCardProps {
     monitored?: boolean;
     alert?: boolean;
   };
+  onClick?: () => void;
+  onTreated?: () => void;
+  onIgnored?: () => void;
+  onMonitored?: () => void;
+  onAlert?: () => void;
 }
 
 const SOURCE_TYPE_ICONS: Record<string, string> = {
@@ -35,20 +40,27 @@ const SOURCE_TYPE_ICONS: Record<string, string> = {
   OTHER: '🌐',
 };
 
-export function MentionCard({
-  id: _id,
-  author,
-  avatar,
-  timestamp,
-  content,
-  platform,
-  url,
-  sourceType,
-  sourceName,
-  sentiment,
-  tags,
-  actions = {}
-}: MentionCardProps) {
+export function MentionCard(props: MentionCardProps) {
+  const {
+    id: _id,
+    author,
+    avatar,
+    timestamp,
+    content,
+    platform,
+    url,
+    sourceType,
+    sourceName,
+    sentiment,
+    tags,
+    actions = {},
+    onClick,
+    onTreated,
+    onIgnored,
+    onMonitored,
+    onAlert
+  } = props;
+
   const getSentimentColor = (type: string) => {
     switch (type.toLowerCase()) {
       case "positive":
@@ -80,7 +92,10 @@ export function MentionCard({
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-all duration-200 space-y-3">
+    <div
+      className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-all duration-200 space-y-3 cursor-pointer"
+      onClick={onClick}
+    >
       {/* Header with author and source */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -99,6 +114,7 @@ export function MentionCard({
             rel="noopener noreferrer"
             className="flex-shrink-0 p-1.5 hover:bg-muted rounded transition-colors"
             title="Voir la source"
+            onClick={(e) => e.stopPropagation()}
           >
             <ExternalLink className="w-4 h-4 text-muted-foreground hover:text-foreground" />
           </a>
@@ -142,14 +158,14 @@ export function MentionCard({
           <span className="mr-1">{getSentimentEmoji(sentiment.type)}</span>
           {sentiment.type}
         </Badge>
-        
+
         {tags.map((tag, index) => (
           <Badge
             key={index}
             variant="secondary"
             className="text-xs"
           >
-            {typeof tag === 'string' ? tag : JSON.stringify(tag)}
+            {tag as any}
           </Badge>
         ))}
       </div>
@@ -160,33 +176,49 @@ export function MentionCard({
           size="sm"
           variant={actions.treated ? "default" : "outline"}
           className="text-xs h-8 flex items-center gap-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTreated?.();
+          }}
         >
           <Check className="w-3 h-3" />
           <span className="hidden sm:inline">{actions.treated ? "Traité" : "Traiter"}</span>
         </Button>
-        
+
         <Button
           size="sm"
           variant={actions.ignored ? "default" : "outline"}
           className="text-xs h-8 flex items-center gap-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            onIgnored?.();
+          }}
         >
           <X className="w-3 h-3" />
           <span className="hidden sm:inline">{actions.ignored ? "Ignoré" : "Ignorer"}</span>
         </Button>
-        
+
         <Button
           size="sm"
           variant={actions.monitored ? "default" : "outline"}
           className="text-xs h-8 flex items-center gap-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMonitored?.();
+          }}
         >
           <Eye className="w-3 h-3" />
           <span className="hidden sm:inline">{actions.monitored ? "Surveillé" : "Surveiller"}</span>
         </Button>
-        
+
         <Button
           size="sm"
           variant={actions.alert ? "destructive" : "outline"}
           className="text-xs h-8 flex items-center gap-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAlert?.();
+          }}
         >
           <Bell className="w-3 h-3" />
           <span className="hidden sm:inline">{actions.alert ? "Alerté" : "Alerte"}</span>

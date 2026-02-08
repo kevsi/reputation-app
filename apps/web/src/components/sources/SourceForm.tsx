@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, X, Plus } from 'lucide-react';
-import { useApi } from '@/hooks/useApi';
+import { sourcesService } from '@/services/sources.service';
 import type { SourceType } from '@/types/models';
 import { SourceTypeSelector } from './SourceTypeSelector';
 
@@ -42,7 +42,6 @@ export default function SourceForm({
   onSuccess,
   onCancel,
 }: SourceFormProps) {
-  const { post } = useApi();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<SourceType | null>(null);
@@ -88,6 +87,38 @@ export default function SourceForm({
     setError(null);
   };
 
+  const msToScrapingFrequency = (ms: number): string => {
+    if (ms <= 3600000) return 'HOURLY';
+    if (ms <= 21600000) return 'EVERY_6_HOURS';
+    if (ms <= 43200000) return 'DAILY';
+    return 'DAILY';
+  };
+
+  const buildConfig = (data: SourceFormData): Record<string, unknown> => {
+    if (selectedType === 'RSS') {
+      return { feedUrl: data.baseUrl };
+    }
+    if (selectedType === 'TRUSTPILOT') {
+      return { companyUrl: data.baseUrl };
+    }
+    if (selectedType === 'REDDIT') {
+      const match = data.baseUrl?.match(/reddit\.com\/r\/([^/]+)/);
+      return {
+        subreddits: match ? [match[1]] : [data.baseUrl || ''],
+        redditClientId: (data as any).redditClientId || '',
+        redditClientSecret: (data as any).redditClientSecret || '',
+      };
+    }
+    if (selectedType === 'NEWS') {
+      return {
+        keywords: data.keywords,
+        language: 'fr',
+        newsApiKey: (data as any).newsApiKey || '',
+      };
+    }
+    return { url: data.baseUrl, keywords: data.keywords };
+  };
+
   const onSubmit: SubmitHandler<SourceFormData> = async (data) => {
     if (!selectedType) {
       setError('Veuillez sélectionner un type de source');
@@ -98,26 +129,17 @@ export default function SourceForm({
     setIsCreating(true);
 
     try {
-      const payload = {
-        brandId,
-        name: data.name,
+      const config = buildConfig(data);
+      const source = await sourcesService.create(brandId, {
         type: data.type as SourceType,
-        baseUrl: data.baseUrl,
-        keywords: data.keywords,
-        scrapingFrequency: data.scrapingFrequency,
-        config: {
-          baseUrl: data.baseUrl,
-        },
-      };
-
-      const response = await post<{ id: string; name: string }>('/sources', payload);
-      
-      // Extract source data from API response
-      const sourceData = response.success && response.data ? response.data : response;
-      onSuccess?.(sourceData);
-    } catch (error) {
+        name: data.name,
+        config,
+        scrapingFrequency: msToScrapingFrequency(data.scrapingFrequency),
+      });
+      onSuccess?.(source);
+    } catch (err: unknown) {
       const message =
-        error instanceof Error ? error.message : 'Erreur lors de la création';
+        err instanceof Error ? err.message : 'Erreur lors de la création';
       setError(message);
     } finally {
       setIsCreating(false);
@@ -126,7 +148,7 @@ export default function SourceForm({
 
   return (
     <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -177,8 +199,8 @@ export default function SourceForm({
                         selectedType === 'REDDIT'
                           ? 'https://reddit.com/r/technology'
                           : selectedType === 'RSS'
-                          ? 'https://example.com/feed.xml'
-                          : 'https://example.com'
+                            ? 'https://example.com/feed.xml'
+                            : 'https://example.com'
                       }
                       {...field}
                     />

@@ -19,6 +19,24 @@ class KeywordsController {
         }
     }
 
+    async getKeywords(req: Request, res: Response, next: NextFunction): Promise<void> {
+        try {
+            const { brandId } = req.query;
+            if (brandId && typeof brandId === 'string') {
+                const keywords = await keywordsService.getKeywordsByBrand(brandId);
+                res.status(200).json({
+                    success: true,
+                    data: keywords,
+                    count: keywords.length,
+                });
+                return;
+            }
+            res.status(400).json({ success: false, message: 'brandId query param is required' });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async addKeywordToBrand(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const { brandId } = req.params;

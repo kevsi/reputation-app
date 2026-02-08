@@ -79,6 +79,7 @@ export interface PaginatedMentions {
   page: number;
   pageSize: number;
   hasMore: boolean;
+  totalPages: number;
 }
 
 // Brands
@@ -122,7 +123,7 @@ export interface AlertDetail {
   title: string;
   description?: string;
   triggerCondition: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'RESOLVED';
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   recipients?: string[];
   createdAt: string;

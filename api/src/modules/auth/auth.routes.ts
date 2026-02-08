@@ -8,7 +8,7 @@ import {
 } from '@/shared/validators/schemas';
 import { z } from 'zod';
 
-const router = Router();
+const router: Router = Router();
 
 // On garde une définition locale pour les schémas spécifiques à l'auth s'ils ne sont pas déjà dans shared
 const refreshTokenSchema = z.object({

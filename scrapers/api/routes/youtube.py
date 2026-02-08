@@ -1,0 +1,15 @@
+from fastapi import APIRouter, HTTPException, status
+from loguru import logger
+from ..models.schemas import YouTubeRequest, ScraperResponse
+from ..utils.rate_limiter import rate_limit
+
+router = APIRouter()
+
+@router.post("/youtube", response_model=ScraperResponse)
+@rate_limit(calls=5, period=60)
+async def scrape_youtube(request: YouTubeRequest) -> ScraperResponse:
+    logger.warning("YouTube scraper not implemented yet")
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="YouTube scraping is not yet implemented"
+    )

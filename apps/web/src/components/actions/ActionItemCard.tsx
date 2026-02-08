@@ -4,11 +4,13 @@ interface ActionItemCardProps {
   id: string;
   title: string;
   platform: string;
-  priority: "Priorité haute" | "Urgent" | "Moyenne" | "Basse";
-  assignedTo: string;
+  priority: "Priorité haute" | "Urgent" | "Moyenne" | "Faible";
+  assignedTo?: string;
   dueDate: string;
   status: "pending" | "in-progress" | "completed";
   onViewDetails?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   onStart?: () => void;
   onComplete?: () => void;
 }
@@ -51,18 +53,16 @@ export function ActionItemCard({
   };
 
   return (
-    <div className={`bg-card border rounded-xl p-5 flex flex-col min-h-[280px] ${
-      status === "completed" ? "opacity-60" : ""
-    }`}>
+    <div className={`bg-card border rounded-xl p-5 flex flex-col min-h-[280px] ${status === "completed" ? "opacity-60" : ""
+      }`}>
       {/* Icon and Title */}
       <div className="flex items-start gap-3 mb-3">
         <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-xl flex-shrink-0">
           {getPriorityIcon()}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className={`font-medium text-sm text-foreground mb-2 line-clamp-2 leading-snug ${
-            status === "completed" ? "line-through" : ""
-          }`} title={title}>
+          <h3 className={`font-medium text-sm text-foreground mb-2 line-clamp-2 leading-snug ${status === "completed" ? "line-through" : ""
+            }`} title={title}>
             {title}
           </h3>
           <div className="text-xs text-muted-foreground">{platform}</div>

@@ -1,41 +1,31 @@
-
-import { useState, useEffect } from "react";
-import { Book, MessageCircle, Loader2, Save, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Book, MessageCircle, Loader2, Save, RefreshCw, AlertCircle, Shield, CreditCard, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usersService } from "@/services/users.service";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { ApiResponse } from "@/types/api";
+import { isApiError } from "@/types/http";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 
 interface OrgData {
   name: string;
   id: string;
   plan?: string;
-}
-
-interface FormData {
-  name: string;
-  email: string;
-  organizationName: string;
-  language: string;
-  timezone: string;
-}
-
-interface Notifications {
-  nouvelles_mentions: boolean;
-  alertes_urgentes: boolean;
-  rapports_hebdo: boolean;
-  mentions_negatives: boolean;
-  activite_concurrent: boolean;
-  tendances_marche: boolean;
+  renewalDate?: string;
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orgData, setOrgData] = useState<OrgData | null>(null);
 
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState({
     name: "",
     email: "",
     organizationName: "",
@@ -43,60 +33,57 @@ export default function SettingsPage() {
     timezone: "Europe/Paris (GMT+1)"
   });
 
-  const [notifications, setNotifications] = useState<Notifications>({
-    nouvelles_mentions: true,
-    alertes_urgentes: true,
-    rapports_hebdo: true,
-    mentions_negatives: true,
-    activite_concurrent: false,
-    tendances_marche: false
+  const [notifications, setNotifications] = useState({
+    mentions: true,
+    alerts: true,
+    reports: true,
+    negative: true
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [user]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         name: user.name || "",
         email: user.email || "",
-        organizationName: "Organisation",
-        language: "Français",
-        timezone: "Europe/Paris (GMT+1)"
-      });
+      }));
 
       if (user.organizationId) {
-        const res = await apiClient.callApi<OrgData>(`/organizations/${user.organizationId}`);
-        if ((res as ApiResponse<OrgData>).success) {
-          const data = (res as ApiResponse<OrgData>).data;
-          if (data) {
-            setOrgData(data);
-            setFormData(prev => ({ ...prev, organizationName: data.name }));
-          }
+        // Fetch org data
+        const res = await apiClient.get<OrgData>(`/organizations/${user.organizationId}`);
+        if (!isApiError(res)) {
+          setOrgData(res.data);
+          setFormData(prev => ({ ...prev, organizationName: res.data.name }));
         }
       }
     } catch (err) {
-      // Error silently handled
+      toast.error("Chargement des paramètres impossible");
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const toggleNotification = (key: keyof Notifications) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Mock update
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("Paramètres enregistrés avec succès");
+      const response = await usersService.updateProfile({
+        name: formData.name
+      });
+
+      if (!isApiError(response)) {
+        await refreshUser();
+        toast.success("Profil mis à jour");
+      } else {
+        toast.error("Erreur de mise à jour");
+      }
     } catch (error) {
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error("Erreur réseau");
     } finally {
       setSaving(false);
     }
@@ -104,201 +91,139 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background h-full min-h-[500px]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex-1 flex items-center justify-center bg-background min-h-[500px]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto">
-        {/* Header */}
-        <div className="mb-6 flex justify-between items-end">
+      <div className="p-4 sm:p-6 md:p-8 max-w-[1200px] mx-auto">
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-              Paramètres
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Gérez vos préférences et les configurations de {formData.organizationName}
-            </p>
+            <h1 className="text-2xl md:text-4xl font-bold">Paramètres</h1>
+            <p className="text-muted-foreground mt-2">Gérez votre profil et les préférences de votre organisation.</p>
           </div>
-          <button
-            onClick={fetchData}
-            className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground"
-          >
+          <Button variant="outline" size="icon" onClick={fetchData} className="rounded-full">
             <RefreshCw className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left Column - Main Settings */}
-          <div className="xl:col-span-2 space-y-6">
-            {/* Profil & Organisation */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-6">
-                Profil & Organisation
-              </h2>
-
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Votre Nom
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Column */}
+          <div className="lg:col-span-2 space-y-8">
+            <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-6 border-b">
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-primary" /> Informations Personnelles
+                </CardTitle>
+                <CardDescription>Mettez à jour vos informations publiques.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nom complet</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email professionnel</Label>
+                    <Input id="email" value={formData.email} disabled className="bg-muted/50" />
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    disabled
-                    className="w-full px-4 py-2.5 border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed"
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="org">Organisation</Label>
+                  <Input id="org" value={formData.organizationName} disabled className="bg-muted/50" />
                 </div>
+              </CardContent>
+              <CardFooter className="bg-muted/10 pt-4 border-t flex justify-end">
+                <Button onClick={handleSave} disabled={saving} className="gap-2 rounded-full px-6">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Save className="w-4 h-4" /> Enregistrer les changements
+                </Button>
+              </CardFooter>
+            </Card>
 
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Nom de l'organisation
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.organizationName}
-                    onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="rounded-2xl border-border/50 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-primary" /> Centre de Notifications
+                </CardTitle>
+                <CardDescription>Choisissez comment et quand vous voulez être alerté.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      Langue
-                    </label>
-                    <select
-                      value={formData.language}
-                      onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option>Français</option>
-                      <option>English</option>
-                    </select>
+                    <div className="font-semibold">Nouvelles Mentions</div>
+                    <div className="text-xs text-muted-foreground">Recevoir une alerte pour chaque nouvelle mention détectée.</div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      Fuseau horaire
-                    </label>
-                    <select
-                      value={formData.timezone}
-                      onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option>Europe/Paris (GMT+1)</option>
-                      <option>UTC (GMT+0)</option>
-                    </select>
-                  </div>
+                  <Switch checked={notifications.mentions} onCheckedChange={(v) => setNotifications({ ...notifications, mentions: v })} />
                 </div>
-              </div>
-            </div>
-
-            {/* Notifications */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-6">
-                Notifications
-              </h2>
-
-              <div className="space-y-4">
-                {[
-                  { key: "nouvelles_mentions", label: "Nouvelles mentions" },
-                  { key: "alertes_urgentes", label: "Alertes urgentes" },
-                  { key: "rapports_hebdo", label: "Rapports hebdomadaires" },
-                  { key: "mentions_negatives", label: "Mentions négatives" }
-                ].map(({ key, label }) => (
-                  <div key={key} className="flex items-center justify-between py-2">
-                    <span className="text-sm text-foreground">{label}</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notifications[key as keyof typeof notifications]}
-                        onChange={() => toggleNotification(key as keyof Notifications)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                    </label>
+                <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
+                  <div>
+                    <div className="font-semibold text-red-600">Alertes Critiques</div>
+                    <div className="text-xs text-muted-foreground">Notifications immédiates pour les situations de crise.</div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <Switch checked={notifications.alerts} onCheckedChange={(v) => setNotifications({ ...notifications, alerts: v })} />
+                </div>
+                <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
+                  <div>
+                    <div className="font-semibold text-amber-600">Sentiments Négatifs</div>
+                    <div className="text-xs text-muted-foreground">Surveillance spécifique des mentions négatives.</div>
+                  </div>
+                  <Switch checked={notifications.negative} onCheckedChange={(v) => setNotifications({ ...notifications, negative: v })} />
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Right Column - Quick Actions & Info */}
-          <div className="space-y-6">
-            {/* Actions rapides */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">
-                Actions
-              </h2>
-              <div className="space-y-3">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-foreground text-background rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Enregistrer
-                </button>
-                <button className="w-full px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-foreground">
-                  Exporter mes données
-                </button>
-              </div>
-            </div>
-
-            {/* Informations du plan */}
-            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">
-                Plan & Abonnement
-              </h2>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Plan actuel</span>
-                  <span className="font-semibold text-foreground">{orgData?.plan || 'Free'}</span>
+          {/* Sidebar */}
+          <div className="space-y-8">
+            <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden border-primary/20">
+              <CardHeader className="bg-primary/5 pb-4">
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <CreditCard className="w-5 h-5" /> Abonnement
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-medium">Offre</span>
+                  <span className="px-2 py-1 bg-primary/10 text-primary text-xs font-bold rounded uppercase">
+                    {orgData?.plan || 'Standard'}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Renouvellement</span>
-                  <span className="font-semibold text-foreground">01/02/2025</span>
+                <div className="flex items-center justify-between mb-6 text-sm">
+                  <span className="text-muted-foreground">Prochain paiement</span>
+                  <span className="font-medium">{orgData?.renewalDate || 'N/A'}</span>
                 </div>
-              </div>
-              <button className="w-full mt-6 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-                Mettre à niveau le plan
-              </button>
-            </div>
+                <Button className="w-full rounded-full" variant="outline">Gérer la facturation</Button>
+              </CardContent>
+            </Card>
 
-            {/* Support */}
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-foreground mb-4">
-                Besoin d'aide ?
-              </h2>
-              <div className="space-y-4">
-                <a href="#" className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors group">
-                  <div className="p-2 bg-muted rounded-lg group-hover:bg-primary/10">
-                    <Book className="w-4 h-4" />
-                  </div>
-                  <span>Documentation</span>
-                </a>
-                <a href="#" className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors group">
-                  <div className="p-2 bg-muted rounded-lg group-hover:bg-primary/10">
-                    <MessageCircle className="w-4 h-4" />
-                  </div>
-                  <span>Contacter le support</span>
-                </a>
-              </div>
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground px-2">Assistance</h3>
+              <a href="#" className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/30 transition-all group">
+                <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                  <Book className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <div className="font-semibold text-sm">Base de connaissance</div>
+                  <div className="text-xs text-muted-foreground">Guides et tutoriels</div>
+                </div>
+              </a>
+              <a href="#" className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/30 transition-all group">
+                <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <div className="font-semibold text-sm">Contacter le support</div>
+                  <div className="text-xs text-muted-foreground">Réponse sous 24h</div>
+                </div>
+              </a>
             </div>
           </div>
         </div>
