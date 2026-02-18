@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Service de migration de base de données
+  migrations:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+      target: builder
+    container_name: sentinelle-migrations
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinelle
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app/database
+    command: ["sh", "-c", "npx prisma migrate deploy || true"]
+    restart: "no"
+
   redis:
     image: redis:7-alpine
     container_name: sentinelle-redis
@@ -93,22 +109,36 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   scrapers:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.api
-      target: runner
+      dockerfile: infrastructure/docker/Dockerfile.scrapers
     container_name: sentinelle-scrapers
+    ports:
+      - "8001:8001"
     environment:
       <<: *api-env
+      # Scraping specific settings
+      PYTHONUNBUFFERED: "1"
+      # Proxy settings (optional)
+      PROXY_PROVIDER: ${PROXY_PROVIDER:-}
+      PROXY_API_KEY: ${PROXY_API_KEY:-}
+      STATIC_PROXIES: ${STATIC_PROXIES:-}
+      # CAPTCHA solving (optional)
+      CAPTCHA_API_KEY: ${CAPTCHA_API_KEY:-}
+    volumes:
+      - scrapers_data:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
+    shm_size: '2gb'  # Required for Playwright
 
   ai-service:
     build:
@@ -129,3 +159,4 @@ volumes:
   postgres_data:
   redis_data:
   huggingface_cache:
+  scrapers_data:

@@ -1,0 +1,84 @@
+# Multi-stage build for Scrapers Service with Playwright support
+# Build stage
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY ../scrapers/requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+
+# Production stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for Playwright and browsers
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    gcc \
+    g++ \
+    # Browser dependencies (Chromium)
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgtk-3-0 \
+    # Additional libraries
+    libglib2.0-0 \
+    libdbus-1-3 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxshmfence1 \
+    fonts-liberation \
+    fontconfig \
+    # curl for health checks
+    curl \
+    # unzip for extraction
+    unzip \
+    # Git for Python packages
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed Python packages from builder
+COPY --from=builder /install /usr/local
+
+# Copy application
+COPY ../scrapers/ .
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Create appuser first
+RUN useradd -m -s /bin/bash appuser
+
+# Install Playwright browsers as appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+RUN python -m playwright install chromium
+
+ENV PYTHONUNBUFFERED=1
+
+# Expose port
+EXPOSE 8001
+
+# Run application
+CMD ["python", "-m", "api.main"]
