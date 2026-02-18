@@ -1,0 +1,198 @@
+{
+  "dashboard": {
+    "title": "Sentinelle API - Security Dashboard",
+    "tags": ["authentication", "security", "api"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Login Attempts",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(auth_login_attempts_total[5m])) by (status, method)",
+            "legendFormat": "{{status}} - {{method}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Refresh Tokens",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(auth_refresh_tokens_total[5m])) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Tokens Revoked",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(auth_tokens_revoked_total[5m])) by (reason)",
+            "legendFormat": "{{reason}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Attacks Detected",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(auth_attacks_detected_total[5m])) by (type)",
+            "legendFormat": "{{type}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Active Sessions",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "auth_active_sessions",
+            "legendFormat": "Active"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Token Families",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "auth_token_families_total",
+            "legendFormat": "Families"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Blacklisted Tokens",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "auth_blacklisted_tokens",
+            "legendFormat": "Blacklisted"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "WebAuthn Credentials",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "auth_webauthn_credentials_total",
+            "legendFormat": "Credentials"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Attack Detection Rate",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 20, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(auth_attacks_detected_total[1h]) / rate(auth_login_attempts_total[1h]) * 100",
+            "legendFormat": "Attack Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Token Rotation Frequency",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 20, "w": 16, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(auth_token_rotation_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(auth_token_rotation_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "instance",
+          "type": "query",
+          "query": "label_values(auth_login_attempts_total, instance)",
+          "refresh": 1
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  },
+  "alerts": [
+    {
+      "name": "Security Alerts",
+      "rules": [
+        {
+          "alert": "HighAttackRate",
+          "expr": "rate(auth_attacks_detected_total[5m]) > 10",
+          "for": "5m",
+          "labels": {"severity": "critical"},
+          "annotations": {
+            "summary": "High attack rate detected",
+            "description": "More than 10 attacks detected per minute in the last 5 minutes"
+          }
+        },
+        {
+          "alert": "ManyFailedLogins",
+          "expr": "rate(auth_login_attempts_total{status=\"failure\"}[5m]) > 50",
+          "for": "10m",
+          "labels": {"severity": "warning"},
+          "annotations": {
+            "summary": "Many failed login attempts",
+            "description": "More than 50 failed logins per minute detected"
+          }
+        },
+        {
+          "alert": "TokenBlacklistGrowing",
+          "expr": "auth_blacklisted_tokens > 1000",
+          "for": "15m",
+          "labels": {"severity": "warning"},
+          "annotations": {
+            "summary": "Large number of blacklisted tokens",
+            "description": "There are more than 1000 blacklisted tokens"
+          }
+        }
+      ]
+    }
+  ]
+}
