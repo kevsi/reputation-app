@@ -11,8 +11,8 @@ import { usePlan } from "@/hooks/usePlan";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { MentionDetail } from "@/types/api";
+import { SentimentType } from "@/types/models";
 import { isApiError } from "@/types/http";
-import { ApiErrorHandler } from "@/lib/api-error-handler";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -49,15 +49,15 @@ const filters = [
 export default function MentionsPage() {
   const { brandId: urlBrandId } = useParams<{ brandId: string }>();
   const navigate = useNavigate();
-  const { brands, selectedBrand, setSelectedBrand } = useBrand();
-  const { plan, hasFeature } = usePlan();
+  const { selectedBrand } = useBrand();
+  const { hasFeature } = usePlan();
 
   // State
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [mentions, setMentions] = useState<MappedMention[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
+  const [_totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export default function MentionsPage() {
     };
   }, []);
 
-  const fetchMentions = useCallback(async () => {
+  const fetchMentions = useCallback(async (signal?: AbortSignal) => {
     const effectiveId = urlBrandId || selectedBrand?.id;
     if (!effectiveId) return;
 
@@ -114,25 +114,42 @@ export default function MentionsPage() {
         brandId: effectiveId,
         page: currentPage,
         limit: pageSize,
-        sentiment: activeFilter !== "all" ? (activeFilter as any) : undefined,
+        sentiment: activeFilter !== "all" ? (activeFilter as SentimentType) : undefined,
         searchTerm: searchQuery || undefined
       });
 
+      // Check if request was aborted
+      if (signal?.aborted) return;
+
       if (!isApiError(res) && res.data) {
-        setMentions(res.data.items.map(transformMention));
-        setTotalItems(res.data.total);
-        setTotalPages(res.data.totalPages || Math.ceil(res.data.total / pageSize));
+        const items = res.data?.items || [];
+        const total = res.data?.total ?? 0;
+        setMentions(items.map(transformMention));
+        setTotalItems(total);
+        setTotalPages(res.data?.totalPages || Math.ceil(total / pageSize));
       } else {
-        setError(ApiErrorHandler.getUserMessage(isApiError(res) ? res.error : null));
+        const error = isApiError(res) ? res.error : { code: 'UNKNOWN_ERROR', message: 'Erreur inconnue' };
+        setError(error?.message || 'Erreur inconnue');
       }
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError('Erreur de connexion');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }, [urlBrandId, selectedBrand?.id, activeFilter, searchQuery, currentPage, transformMention]);
 
-  useEffect(() => { fetchMentions(); }, [fetchMentions]);
+  useEffect(() => {
+    const abortController = new AbortController();
+    fetchMentions(abortController.signal);
+    
+    return () => {
+      abortController.abort();
+    };
+  }, [fetchMentions]);
 
   useBrandListener(async () => {
     if (selectedBrand && selectedBrand.id !== urlBrandId) {
@@ -175,7 +192,7 @@ export default function MentionsPage() {
             <p className="text-muted-foreground mt-1">Gérez votre e-réputation en temps réel pour {selectedBrand?.name}.</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={fetchMentions}>
+            <Button variant="outline" size="sm" onClick={() => fetchMentions()}>
               <Loader2 className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Actualiser
             </Button>
             {hasFeature('basic_reports') && (
@@ -222,7 +239,7 @@ export default function MentionsPage() {
             <div className="py-20 text-center bg-destructive/5 rounded-3xl border border-destructive/20">
               <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
               <p className="font-bold text-destructive mb-4">{error}</p>
-              <Button variant="outline" onClick={fetchMentions}>Réessayer</Button>
+              <Button variant="outline" onClick={() => fetchMentions()}>Réessayer</Button>
             </div>
           ) : mentions.length === 0 ? (
             <div className="py-20 text-center bg-muted/20 border border-dashed border-border rounded-3xl">

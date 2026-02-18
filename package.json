@@ -2,6 +2,7 @@
     "name": "sentinelle-reputation",
     "private": true,
     "description": "Sentinelle Reputation Monorepo",
+    "packageManager": "npm@10.0.0",
     "workspaces": [
         "api",
         "apps/*",

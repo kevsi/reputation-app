@@ -1,11 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { BrandProvider, useBrand } from '@/contexts/BrandContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import './global.css';
 
 import Layout from '@/components/layout/Layout';
@@ -62,52 +63,54 @@ function MentionsRedirect() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider>
-      <BrandProvider>
-        <AuthProvider>
-          <OnboardingProvider>
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <Routes>
-                {/* Routes d'authentification (avec AuthLayout) */}
-                <Route element={<AuthLayout />}>
-                  <Route path="/signin" element={<SignInPage />} />
-                  <Route path="/signup" element={<SignUpPage />} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                  <Route path="/reset-password" element={<ResetPasswordPage />} />
-                  <Route path="/verify-email" element={<VerifyEmail />} />
-                  <Route path="/two-factor" element={<TwoFactorAuth />} />
-                </Route>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <BrandProvider>
+          <AuthProvider>
+            <OnboardingProvider>
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <Routes>
+                  {/* Routes d'authentification (avec AuthLayout) */}
+                  <Route element={<AuthLayout />}>
+                    <Route path="/signin" element={<SignInPage />} />
+                    <Route path="/signup" element={<SignUpPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                    <Route path="/verify-email" element={<VerifyEmail />} />
+                    <Route path="/two-factor" element={<TwoFactorAuth />} />
+                  </Route>
 
-                {/* Routes d'onboarding (protégées) */}
-                <Route path="/get-started" element={<ProtectedRoute><Started /></ProtectedRoute>} />
-                <Route path="/onboarding/product" element={<ProtectedRoute><OnboardingProduct /></ProtectedRoute>} />
-                <Route path="/onboarding/platforms" element={<ProtectedRoute><OnboardingPlatforms /></ProtectedRoute>} />
-                <Route path="/onboarding/alerts" element={<ProtectedRoute><OnboardingAlerts /></ProtectedRoute>} />
-                <Route path="/onboarding/invite" element={<ProtectedRoute><OnboardingInvite /></ProtectedRoute>} />
-                <Route path="/onboarding/setup" element={<ProtectedRoute><OnboardingSetup /></ProtectedRoute>} />
-                <Route path="/onboarding/complete" element={<ProtectedRoute><OnboardingComplete /></ProtectedRoute>} />
+                  {/* Routes d'onboarding (protégées) */}
+                  <Route path="/get-started" element={<ProtectedRoute><Started /></ProtectedRoute>} />
+                  <Route path="/onboarding/product" element={<ProtectedRoute><OnboardingProduct /></ProtectedRoute>} />
+                  <Route path="/onboarding/platforms" element={<ProtectedRoute><OnboardingPlatforms /></ProtectedRoute>} />
+                  <Route path="/onboarding/alerts" element={<ProtectedRoute><OnboardingAlerts /></ProtectedRoute>} />
+                  <Route path="/onboarding/invite" element={<ProtectedRoute><OnboardingInvite /></ProtectedRoute>} />
+                  <Route path="/onboarding/setup" element={<ProtectedRoute><OnboardingSetup /></ProtectedRoute>} />
+                  <Route path="/onboarding/complete" element={<ProtectedRoute><OnboardingComplete /></ProtectedRoute>} />
 
-                {/* Routes avec layout (sidebar + rightbar) (protégées) */}
-                <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="mentions" element={<MentionsRedirect />} />
-                  <Route path="mentions/:brandId" element={<Mentions />} />
-                  <Route path="alerts" element={<Alerts />} />
-                  <Route path="analysis" element={<Analysis />} />
-                  <Route path="reports" element={<Reports />} />
-                  <Route path="actions" element={<Actions />} />
-                  <Route path="brands" element={<Brands />} />
-                  <Route path="sources" element={<Sources />} />
-                  <Route path="keywords" element={<Keywords />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="*" element={<div>404 Not Found</div>} />
-                </Route>
-              </Routes>
-            </BrowserRouter>
-          </OnboardingProvider>
-        </AuthProvider>
-      </BrandProvider>
-    </ThemeProvider>
+                  {/* Routes avec layout (sidebar + rightbar) (protégées) */}
+                  <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                    <Route index element={<Dashboard />} />
+                    <Route path="mentions" element={<MentionsRedirect />} />
+                    <Route path="mentions/:brandId" element={<Mentions />} />
+                    <Route path="alerts" element={<Alerts />} />
+                    <Route path="analysis" element={<Analysis />} />
+                    <Route path="reports" element={<Reports />} />
+                    <Route path="actions" element={<Actions />} />
+                    <Route path="brands" element={<Brands />} />
+                    <Route path="sources" element={<Sources />} />
+                    <Route path="keywords" element={<Keywords />} />
+                    <Route path="settings" element={<Settings />} />
+                    <Route path="*" element={<div>404 Not Found</div>} />
+                  </Route>
+                </Routes>
+              </BrowserRouter>
+            </OnboardingProvider>
+          </AuthProvider>
+        </BrandProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   </StrictMode>
 );
 

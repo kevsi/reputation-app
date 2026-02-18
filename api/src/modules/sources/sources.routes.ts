@@ -8,12 +8,11 @@ import { requireAuth } from '@/shared/middleware/auth.middleware';
 import { requireOwnership } from '@/shared/middleware/ownership.middleware';
 import { validate } from '@/shared/middleware/validate.middleware';
 import {
-  createSourceSchema,
   updateSourceSchema,
   updateStatusSchema,
 } from './sources.validation';
 
-const router = Router();
+const router: Router = Router();
 const controller = new SourcesController();
 
 router.use(requireAuth);

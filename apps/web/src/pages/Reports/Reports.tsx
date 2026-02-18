@@ -44,6 +44,8 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isToggling, setIsToggling] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [selection, setSelection] = useState<ReportFormSelection>({
@@ -116,6 +118,8 @@ export default function ReportsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (isDeleting) return;
+    setIsDeleting(id);
     try {
       const response = await reportsService.delete(id);
       if (isApiError(response)) {
@@ -126,13 +130,17 @@ export default function ReportsPage() {
       }
     } catch (e) {
       toast.error("Échec de la suppression");
+    } finally {
+      setIsDeleting(null);
     }
   };
 
   const handleToggleScheduled = async (id: string) => {
+    if (isToggling) return;
     const report = scheduledReports.find(r => r.id === id);
     if (!report) return;
 
+    setIsToggling(id);
     try {
       const response = await reportsService.toggleScheduled(id, !report.isActive);
       if (isApiError(response)) {
@@ -143,6 +151,8 @@ export default function ReportsPage() {
       }
     } catch (err) {
       toast.error("Erreur toggle");
+    } finally {
+      setIsToggling(null);
     }
   };
 

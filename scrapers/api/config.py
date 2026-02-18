@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     reddit_client_id: Optional[str] = None
     reddit_client_secret: Optional[str] = None
     youtube_api_key: Optional[str] = None
+    serp_api_key: Optional[str] = None
     
     # Timeouts
     http_timeout: int = 30  # secondes
@@ -43,7 +44,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        extra="ignore"
     )
 
 settings = Settings()

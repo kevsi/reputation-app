@@ -15,6 +15,10 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string(),
 
+  // Database connection pool settings
+  DATABASE_POOL_SIZE: z.string().transform(Number).default('10'),
+  DATABASE_CONNECTION_TIMEOUT: z.string().transform(Number).default('10'),
+
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.string().transform(Number).default('6379'),
   REDIS_PASSWORD: z.string().optional(),

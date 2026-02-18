@@ -32,6 +32,7 @@ model User {
   notifications           Notification[]
   createdOrganizations    Organization[]           @relation("OrganizationOwner")
   organization            Organization?            @relation(fields: [organizationId], references: [id])
+  webAuthnCredentials     WebAuthnCredential[]
 
   @@index([email])
   @@index([organizationId])
@@ -486,6 +487,29 @@ model SubscriptionLimit {
   scrapingFrequencyMinutes Int
 
   @@map("subscription_limits")
+}
+
+// ============================================
+// WEB AUTHN / FIDO2 MODELS
+// ============================================
+
+model WebAuthnCredential {
+  id              String   @id @default(cuid())
+  userId          String
+  credentialId    String   @unique // ID du credential FIDO2
+  publicKey       String   // Clé publique stockée (base64)
+  counter         Int      @default(0) // Compteur d'authentification
+  deviceType      String   // "singleDevice" ou "multiDevice"
+  backedUp        Boolean  @default(false)
+  transports      String[] @default([]) // "usb", "nfc", "ble", "internal"
+  createdAt       DateTime @default(now())
+  lastUsedAt      DateTime?
+  name            String?  // Nom assigné par l'utilisateur (ex: "MacBook Pro")
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("webauthn_credentials")
 }
 
 enum Role {

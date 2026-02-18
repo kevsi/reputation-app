@@ -20,6 +20,7 @@ from .routes import (
     news,
     rss,
     youtube,
+    enhanced_scraper,
 )
 
 # ==================== LOGGING ====================
@@ -137,6 +138,12 @@ app.include_router(tripadvisor.router, prefix="/scrape", tags=["TripAdvisor"])
 app.include_router(facebook.router, prefix="/scrape", tags=["Facebook"])
 app.include_router(twitter.router, prefix="/scrape", tags=["Twitter"])
 app.include_router(reddit.router, prefix="/scrape", tags=["Reddit"])
+app.include_router(news.router, prefix="/scrape", tags=["News"])
+app.include_router(rss.router, prefix="/scrape", tags=["RSS"])
+app.include_router(youtube.router, prefix="/scrape", tags=["YouTube"])
+
+# Enhanced Scraping Routes (Nouveau!)
+app.include_router(enhanced_scraper.router, prefix="/api/v2", tags=["Enhanced Scraping"])
 app.include_router(news.router, prefix="/scrape", tags=["News"])
 app.include_router(rss.router, prefix="/scrape", tags=["RSS"])
 app.include_router(youtube.router, prefix="/scrape", tags=["YouTube"])

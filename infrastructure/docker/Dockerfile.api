@@ -58,6 +58,9 @@ COPY turbo.json* ./
 WORKDIR /app/database
 RUN npx prisma generate
 
+# Build database package (required by API)
+RUN npm run build
+
 # Build API
 WORKDIR /app/api
 RUN npm run build

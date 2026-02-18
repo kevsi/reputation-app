@@ -101,6 +101,7 @@ class ApiClient {
                 ...options,
                 headers,
                 signal: controller.signal,
+                credentials: 'include', // Required for cookies to be sent with cross-origin requests
             });
 
             clearTimeout(timeoutId);

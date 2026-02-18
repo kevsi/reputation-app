@@ -53,7 +53,7 @@ export default function AlertsPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await alertsService.getAll(selectedBrand.id);
+      const response = await alertsService.getAll(selectedBrand.organizationId);
 
       if (isApiError(response)) {
         setError(ApiErrorHandler.getUserMessage(response.error));

@@ -3,8 +3,8 @@ import { ApiResponse } from '../types/http';
 import { AlertDetail } from '../types/api';
 
 class AlertsService {
-    async getAll(brandId: string): Promise<ApiResponse<AlertDetail[]>> {
-        return apiClient.get<AlertDetail[]>('/alerts', { brandId });
+    async getAll(organizationId: string): Promise<ApiResponse<AlertDetail[]>> {
+        return apiClient.get<AlertDetail[]>('/alerts', { organizationId });
     }
 
     async getById(id: string): Promise<ApiResponse<AlertDetail>> {

@@ -27,25 +27,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Vérifier si un token existe au chargement
     useEffect(() => {
+        let isCancelled = false;
+        
         const checkAuth = async () => {
+            // Timeout de sécurité de 5 secondes
+            const timeoutId = setTimeout(() => {
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }, 5000);
+            
             const token = apiClient.getToken();
             if (token) {
                 try {
                     const response = await apiClient.me();
-                    if (isApiSuccess(response)) {
+                    if (!isCancelled && isApiSuccess(response)) {
                         setUser(response.data as User);
-                    } else {
+                    } else if (!isCancelled) {
                         apiClient.setToken(null);
                     }
                 } catch (error) {
-                    apiClient.setToken(null);
-                    setUser(null);
+                    if (!isCancelled) {
+                        apiClient.setToken(null);
+                        setUser(null);
+                    }
                 }
             }
-            setIsLoading(false);
+            
+            clearTimeout(timeoutId);
+            if (!isCancelled) {
+                setIsLoading(false);
+            }
         };
 
         checkAuth();
+        
+        return () => {
+            isCancelled = true;
+        };
     }, []);
 
     const login = async (email: string, password: string) => {

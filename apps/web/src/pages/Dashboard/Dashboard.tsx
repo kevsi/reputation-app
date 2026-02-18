@@ -4,7 +4,6 @@ import { LineChart } from "@/components/dashboard/LineChart";
 import BarChart from "@/components/dashboard/BarChart";
 import ActivityChart from "@/components/dashboard/ActivityChart";
 import DonutChart from "@/components/dashboard/DonutChart";
-import { dashboardService } from "@/services/dashboard.service";
 import { analyticsService } from "@/services/analytics.service";
 import { alertsService } from "@/services/alerts.service";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,7 +12,6 @@ import { useBrandListener } from "@/hooks/useBrandListener";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { DashboardStats, AlertDetail } from "@/types/api";
 import { isApiError } from "@/types/http";
-import { ApiErrorHandler } from "@/lib/api-error-handler";
 import { Button } from "@/components/ui/button";
 
 interface DashboardState {
@@ -35,7 +33,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (signal?: AbortSignal) => {
     if (!selectedBrand) {
       setLoading(false);
       return;
@@ -47,18 +45,24 @@ export default function DashboardPage() {
 
       const [statsRes, alertsRes] = await Promise.all([
         analyticsService.getSummary(selectedBrand.id),
-        alertsService.getAll(selectedBrand.id)
+        alertsService.getAll(selectedBrand.organizationId)
       ]);
 
+      // Check if request was aborted
+      if (signal?.aborted) return;
+
       let stats: DashboardStats | null = null;
-      if (!isApiError(statsRes)) {
-        stats = statsRes.data as any;
+      if (!isApiError(statsRes) && statsRes.data) {
+        stats = statsRes.data as DashboardStats;
       }
 
       let alerts: AlertDetail[] = [];
-      if (!isApiError(alertsRes)) {
-        alerts = alertsRes.data;
+      if (!isApiError(alertsRes) && alertsRes.data) {
+        alerts = alertsRes.data ?? [];
       }
+
+      // Check again after async operations
+      if (signal?.aborted) return;
 
       // Calcul du score de réputation localement
       const totalMentions = stats?.totalMentions ?? 0;
@@ -74,14 +78,23 @@ export default function DashboardPage() {
         reputationScore: repScore
       });
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError("Impossible de charger les données du tableau de bord");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }, [selectedBrand]);
 
   useEffect(() => {
-    fetchDashboardData();
+    const abortController = new AbortController();
+    fetchDashboardData(abortController.signal);
+    
+    return () => {
+      abortController.abort();
+    };
   }, [fetchDashboardData]);
 
   useBrandListener(async () => {
@@ -115,7 +128,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={fetchDashboardData} className="rounded-full shadow-sm">
+            <Button variant="outline" size="sm" onClick={() => fetchDashboardData()} className="rounded-full shadow-sm">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Actualiser
             </Button>
             <Button size="sm" className="rounded-full shadow-md bg-primary hover:bg-primary/90">

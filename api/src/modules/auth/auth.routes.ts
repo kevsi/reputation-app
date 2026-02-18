@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authController } from './auth.controller';
 import { validate } from '@/shared/middleware/validate.middleware';
 import { requireAuth } from '@/shared/middleware/auth.middleware';
+import { authRateLimiter } from '@/shared/middleware/rate-limit.middleware';
 import {
   loginSchema,
   registerSchema,
@@ -43,6 +44,7 @@ const verifyEmailSchema = z.object({
  */
 router.post(
   '/register',
+  authRateLimiter,
   validate(registerSchema),
   authController.register.bind(authController)
 );
@@ -53,6 +55,7 @@ router.post(
  */
 router.post(
   '/login',
+  authRateLimiter,
   validate(loginSchema),
   authController.login.bind(authController)
 );

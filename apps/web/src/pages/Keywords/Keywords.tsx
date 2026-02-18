@@ -6,8 +6,8 @@ import { ConfirmModal } from "@/components/shared/ConfirmModal";
 import { isApiError } from "@/types/http";
 import { ApiErrorHandler } from "@/lib/api-error-handler";
 import {
-  Plus, Loader2, Trash2, Search, Download,
-  Tag, AlertCircle, CheckCircle, ListFilter
+  Plus, Loader2, Trash2, Search,
+  Tag, AlertCircle
 } from "lucide-react";
 import {
   Dialog,
@@ -29,13 +29,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
+import { KeywordDetail } from "@/types/api";
+
 type SortOption = 'name-asc' | 'name-desc' | 'recent';
 
 export default function KeywordsPage() {
   const { selectedBrand } = useBrand();
 
   // State
-  const [keywords, setKeywords] = useState<any[]>([]);
+  const [keywords, setKeywords] = useState<KeywordDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +49,8 @@ export default function KeywordsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newKeyword, setNewKeyword] = useState("");
   const [bulkKeywords, setBulkKeywords] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; id: string | null }>({
     isOpen: false,
     id: null
@@ -63,9 +67,9 @@ export default function KeywordsPage() {
       setError(null);
       const response = await keywordsService.getAll(selectedBrand.id);
 
-      if (!isApiError(response)) {
+      if (!isApiError(response) && response.data) {
         setKeywords(response.data);
-      } else {
+      } else if (isApiError(response)) {
         setError(ApiErrorHandler.getUserMessage(response.error));
       }
     } catch (err) {
@@ -88,7 +92,7 @@ export default function KeywordsPage() {
       });
 
       if (!isApiError(response)) {
-        setKeywords([...keywords, response.data]);
+        setKeywords(prev => [...prev, response.data]);
         setNewKeyword("");
         setDialogOpen(false);
         toast.success("Mot-clé ajouté");
@@ -101,9 +105,11 @@ export default function KeywordsPage() {
   };
 
   const handleBulkAdd = async () => {
+    if (isBulkAdding) return;
     const list = bulkKeywords.split('\n').map(k => k.trim()).filter(k => k.length > 0);
     if (list.length === 0 || !selectedBrand) return;
 
+    setIsBulkAdding(true);
     try {
       let count = 0;
       for (const name of list) {
@@ -116,18 +122,24 @@ export default function KeywordsPage() {
       fetchKeywords();
     } catch (err) {
       toast.error("Erreur import en masse");
+    } finally {
+      setIsBulkAdding(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       const response = await keywordsService.delete(id);
       if (!isApiError(response)) {
-        setKeywords(keywords.filter(k => k.id !== id));
+        setKeywords(prev => prev.filter(k => k.id !== id));
         toast.success("Mot-clé supprimé");
       }
     } catch (err) {
       toast.error("Échec suppression");
+    } finally {
+      setIsDeleting(false);
     }
   };
 

@@ -13,6 +13,14 @@ scrapy==2.11.0
 beautifulsoup4==4.12.2
 lxml==5.1.0
 selenium==4.16.0
+playwright==1.42.0
+
+# Anti-detection & Stealth
+undetected-chromedriver==3.5.5
+# curl-cffi - optionnel, supprimé car non disponible
+#
+# Proxy Management
+# proxy-pool - supprimé, nous avons notre propre implémentation
 
 # APIs externes
 google-api-python-client==2.111.0
@@ -28,6 +36,19 @@ pydantic==2.5.3
 pydantic-settings==2.1.0
 
 # Logging & Monitoring
+loguru==0.7.2
+prometheus-client==0.19.0
+structlog==24.1.0
+psutil==5.9.8
+
+# Async & Queue
+redis==5.0.1
+celery==5.3.4
+
+# CAPTCHA Solving
+# 2captcha-python - supprimé car non nécessaire
+
+# Logging
 loguru==0.7.2
 
 # Testing

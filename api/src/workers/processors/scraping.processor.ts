@@ -2,6 +2,8 @@
  * Processor de scraping - Traitement des jobs BullMQ
  * Conforme à PROMPT_AGENT_IA_PRECISION_MAXIMALE.md
  * Appelle le scraper Python via HTTP ou exécute Scrapy en local
+ * 
+ * INCLUDES: Circuit Breaker for resilience
  */
 import { Job } from 'bullmq';
 import axios from 'axios';
@@ -9,6 +11,11 @@ import { SourcesRepository } from '@/modules/sources/sources.repository';
 import { mentionsService } from '@/modules/mentions/mentions.service';
 import { logger } from '@/infrastructure/logger';
 import { AppError } from '@/shared/utils/errors';
+import { 
+  circuitBreakerRegistry,
+  CircuitBreakerOpenError 
+} from '@/infrastructure/resilience/circuit-breaker';
+import { alertingService } from '@/infrastructure/monitoring/alerting.service';
 
 interface ScrapingJobData {
   sourceId: string;
@@ -31,10 +38,10 @@ interface ScrapedItem {
 const sourcesRepository = new SourcesRepository();
 
 /** Convertit fréquence (secondes) en intervalle pour nextScraping */
-function calculateNextScrapingTime(frequencySeconds: number): Date {
-  const now = new Date();
-  return new Date(now.getTime() + frequencySeconds * 1000);
-}
+// function calculateNextScrapingTime(frequencySeconds: number): Date {
+//   const now = new Date();
+//   return new Date(now.getTime() + frequencySeconds * 1000);
+// }
 
 /**
  * Traiter un job de scraping
@@ -53,7 +60,7 @@ export async function processScrapingJob(job: Job<ScrapingJobData>) {
     return { success: true, mentionsCreated: 0, skipped: true };
   }
 
-  const frequencySeconds = source.scrapingFrequency || 86400;
+  // const frequencySeconds = source.scrapingFrequency || 86400;
 
   try {
     let scrapedData: ScrapedItem[] = [];
@@ -116,6 +123,7 @@ export async function processScrapingJob(job: Job<ScrapingJobData>) {
 
 /**
  * Appeler le scraper Python via HTTP
+ * PROTECTED by Circuit Breaker
  */
 async function callScraperApi(
   type: string,
@@ -124,16 +132,27 @@ async function callScraperApi(
 ): Promise<ScrapedItem[]> {
   const scraperUrl = process.env.SCRAPER_SERVICE_URL || process.env.SCRAPER_API_URL || 'http://localhost:8001';
   const endpoint = getScraperEndpoint(type);
+  const breakerName = `scraper-${type}`;
+
+  // Get or create circuit breaker for this source type
+  const breaker = circuitBreakerRegistry.getBreaker(breakerName, {
+    failureThreshold: 5,
+    successThreshold: 2,
+    timeout: 60000
+  });
 
   try {
-    const response = await axios.post(
-      `${scraperUrl}${endpoint}`,
-      config,
-      {
-        timeout: 300000,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    // Execute with circuit breaker protection
+    const response = await breaker.execute(async () => {
+      return axios.post(
+        `${scraperUrl}${endpoint}`,
+        config,
+        {
+          timeout: 300000,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    });
 
     await job.updateProgress({
       phase: 'scraping_complete',
@@ -142,9 +161,22 @@ async function callScraperApi(
 
     return response.data?.data || [];
   } catch (error: any) {
+    // Check if circuit breaker is open
+    if (error instanceof CircuitBreakerOpenError) {
+      logger.warn(`Circuit breaker OPEN for ${type}, skipping scraping`);
+      
+      // Alert on circuit breaker open
+      await alertingService.alertCircuitBreakerOpen(breakerName, error.metrics.failures);
+      
+      // Don't throw - just skip this attempt
+      return [];
+    }
+    
     if (error.response?.status === 429) {
+      await alertingService.alertRateLimit(type);
       throw new AppError('Rate limit atteint pour cette source', 429);
     }
+    
     throw new AppError(
       `Erreur scraper: ${error.message}`,
       error.response?.status || 500
@@ -174,7 +206,7 @@ async function runScrapyLocally(
   sourceId: string,
   type: string,
   config: any,
-  source: any,
+  _source: any,
   job: Job
 ): Promise<ScrapedItem[]> {
   const { spawn } = await import('child_process');

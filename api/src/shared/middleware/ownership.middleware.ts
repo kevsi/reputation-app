@@ -180,5 +180,5 @@ export function requireBrandOwnership(req: Request, _res: Response, next: NextFu
         } catch (error) {
             next(error);
         }
-    })();
+    })().catch(next); // ← Ajout du .catch pour capturer les erreurs synchrones
 }

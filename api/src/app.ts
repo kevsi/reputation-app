@@ -5,6 +5,8 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { config } from './config/app';
 import { errorHandler, notFoundHandler } from '@/shared/middleware/error.middleware';
+import { securityHeaders, corsSecurityHeaders } from '@/shared/middleware/security-headers.middleware';
+import { csrfProtection } from '@/shared/middleware/csrf.middleware';
 import { logger } from './infrastructure/logger';
 import { prisma } from '@/shared/database/prisma.client';
 import sourcesRoutes from './modules/sources/sources.routes';
@@ -31,18 +33,34 @@ export const createApp = (): Application => {
   const { initMonitoring } = require('@/infrastructure/monitoring/prometheus');
   initMonitoring(app);
 
+  // ===== JWT Secret Rotation =====
+  // Initialiser le service de rotation des secrets JWT
+  if (process.env.NODE_ENV === 'production') {
+    const { jwtSecretRotationService } = require('@/modules/auth/jwt-secret-rotation.service');
+    jwtSecretRotationService.initialize().then(() => {
+      // Planifier la rotation automatique (tous les jours à 2h du matin)
+      jwtSecretRotationService.scheduleRotation('0 2 * * *');
+    });
+  }
+
   // ===== Security & Basic Middleware =====
 
   // Helmet pour sécuriser les headers HTTP
   app.use(helmet());
 
-  // CORS
+  // Custom security headers
+  app.use(securityHeaders);
+
+  // CORS - Allow credentials for httpOnly cookies
   app.use(cors({
     origin: [config.CLIENT_URL, config.ADMIN_URL, config.LANDING_URL],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'x-csrf-token'],
   }));
+
+  // CORS security headers
+  app.use(corsSecurityHeaders);
 
   // Compression des réponses
   app.use(compression() as any);
@@ -50,6 +68,14 @@ export const createApp = (): Application => {
   // Rate limiting (Redis-backed)
   const { userRateLimiter } = require('@/shared/middleware/rate-limit.middleware');
   app.use(userRateLimiter);
+
+  // ===== Response Format Middleware =====
+  // Standardise toutes les réponses API
+  const { responseFormatter } = require('@/shared/middleware/response-format.middleware');
+  app.use(responseFormatter);
+
+  // CSRF Protection - Double Submit Cookie pattern
+  app.use(csrfProtection);
 
   // Parse JSON bodies
   app.use(express.json({ limit: '10mb' }));
@@ -89,44 +115,48 @@ export const createApp = (): Application => {
     });
   });
 
-  // ===== PUBLIC DEMO ENDPOINT (no auth required) =====
-  app.get('/demo/mentions', async (_req: Request, res: Response) => {
-    try {
-      const mentions = await prisma.mention.findMany({
-        include: { brand: true, source: true },
-        orderBy: { createdAt: 'desc' },
-        take: 50
-      });
-      res.json({
-        success: true,
-        count: mentions.length,
-        message: 'Demo endpoint - mentions from database',
-        data: mentions
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
+  // ===== Demo Endpoints - RESTRICTED TO DEV ONLY =====
+  // SECURITY: Completely disabled in production, staging and test to prevent data leaks
+  const isDevOnly = process.env.NODE_ENV === 'development';
+  if (isDevOnly) {
+    app.get('/demo/mentions', async (_req: Request, res: Response) => {
+      try {
+        const mentions = await prisma.mention.findMany({
+          include: { brand: true, source: true },
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        });
+        res.json({
+          success: true,
+          count: mentions.length,
+          message: 'Demo endpoint - mentions from database',
+          data: mentions
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
 
-  app.get('/demo/brands', async (_req: Request, res: Response) => {
-    try {
-      const brands = await prisma.brand.findMany({
-        take: 20
-      });
-      res.json({
-        success: true,
-        data: brands
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
+    app.get('/demo/brands', async (_req: Request, res: Response) => {
+      try {
+        const brands = await prisma.brand.findMany({
+          take: 20
+        });
+        res.json({
+          success: true,
+          data: brands
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+  }
 
   // ===== API Routes =====
   const apiRouter = express.Router();

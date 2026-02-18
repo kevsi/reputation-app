@@ -111,7 +111,7 @@ class MentionsService {
     ): Promise<PaginatedResponse<any>> {
         const cacheKey = `mentions:list:${organizationId}:${brandId || 'all'}:${JSON.stringify(pagination)}`;
 
-        return await cacheService.wrap(cacheKey, this.CACHE_TTL, async () => {
+        const result = await cacheService.wrap<PaginatedResponse<any>>(cacheKey, this.CACHE_TTL, async () => {
             const where: any = { brand: { organizationId } };
             if (brandId) where.brandId = brandId;
             const page = Math.max(1, pagination.page || 1);
@@ -126,7 +126,7 @@ class MentionsService {
             const totalPages = Math.ceil(total / limit);
 
             return {
-                data,
+                data: data,
                 pagination: {
                     page,
                     limit,
@@ -137,6 +137,8 @@ class MentionsService {
                 }
             };
         });
+
+        return result;
     }
 
     /**

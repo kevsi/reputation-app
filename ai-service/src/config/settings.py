@@ -1,6 +1,6 @@
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import Optional, List
 
 class Settings(BaseSettings):
     # Server
@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     WORKERS: int = 2
     LOG_LEVEL: str = "info"
 
+    # CORS - Restrict to specific origins in production
+    CORS_ORIGINS: str = "*"  # Comma-separated list of allowed origins
+    
     # Models
     SENTIMENT_MODEL: str = "nlptown/bert-base-multilingual-uncased-sentiment"
     EMOTION_MODEL: str = "j-hartmann/emotion-english-distilroberta-base"

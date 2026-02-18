@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { Brand } from '@/types/models';
+import { useAuth } from './AuthContext';
 
 export type { Brand };
 
@@ -58,6 +59,14 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const loadBrands = useCallback(async () => {
     // Prevent duplicate API calls
     if (isLoadingRef.current) return;
+
+    // Skip if no token (user not authenticated)
+    if (!apiClient.getToken()) {
+      setLoading(false);
+      setBrands([]);
+      setSelectedBrand(null);
+      return;
+    }
 
     try {
       isLoadingRef.current = true;

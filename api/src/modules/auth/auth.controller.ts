@@ -3,19 +3,44 @@ import { authService } from './auth.service';
 import { logger } from '@/infrastructure/logger';
 import { AppError } from '@/shared/utils/errors';
 import { prisma } from '@/shared/database/prisma.client';
+import { config } from '@/config/app';
 
 class AuthController {
   /**
    * POST /api/v1/auth/login
    * Connexion d'un utilisateur
+   * 
+   * Security: Uses httpOnly cookies for token storage to prevent XSS
    */
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await authService.login(req.body);
-      const { success, ...data } = result;
+      const { success, accessToken, refreshToken, ...userData } = result;
+
+      // Set httpOnly cookies for tokens (XSS protection)
+      // Using 'lax' for better cross-origin compatibility while maintaining security
+      const cookieOptions = {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 15 * 60 * 1000, // 15 minutes for access token
+      };
+
+      const refreshCookieOptions = {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days for refresh token
+      };
+
+      // Set cookies
+      res.cookie('access_token', accessToken, cookieOptions);
+      res.cookie('refresh_token', refreshToken, refreshCookieOptions);
+
+      // Return user data (not tokens - they are in cookies)
       res.status(200).json({
         success,
-        data
+        data: userData
       });
     } catch (error) {
       logger.error('Error logging in:', error);
@@ -26,14 +51,37 @@ class AuthController {
   /**
    * POST /api/v1/auth/register
    * Inscription d'un nouvel utilisateur
+   * 
+   * Security: Uses httpOnly cookies for token storage to prevent XSS
    */
   async register(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await authService.register(req.body);
-      const { success, ...data } = result;
+      const { success, accessToken, refreshToken, ...userData } = result;
+
+      // Set httpOnly cookies for tokens (XSS protection)
+      const cookieOptions = {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 15 * 60 * 1000, // 15 minutes for access token
+      };
+
+      const refreshCookieOptions = {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days for refresh token
+      };
+
+      // Set cookies
+      res.cookie('access_token', accessToken, cookieOptions);
+      res.cookie('refresh_token', refreshToken, refreshCookieOptions);
+
+      // Return user data (not tokens - they are in cookies)
       res.status(201).json({
         success,
-        data
+        data: userData
       });
     } catch (error) {
       logger.error('Error registering user:', error);
@@ -96,11 +144,20 @@ class AuthController {
   /**
    * POST /api/v1/auth/logout
    * Déconnexion de l'utilisateur
+   * 
+   * Security: Clears httpOnly cookies
    */
-  async logout(_req: Request, res: Response, next: NextFunction) {
+  async logout(req: Request, res: Response, next: NextFunction) {
     try {
-      // En production, on invaliderait le refresh token
-      // ou on l'ajouterait à une blacklist Redis
+      // Clear the cookies
+      res.clearCookie('access_token', { httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax' });
+      res.clearCookie('refresh_token', { httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax' });
+
+      // If refresh token was provided, blacklist it
+      const refreshToken = req.cookies?.refresh_token;
+      if (refreshToken) {
+        await authService.logout(refreshToken);
+      }
 
       res.status(200).json({
         success: true,
@@ -115,10 +172,13 @@ class AuthController {
   /**
    * POST /api/v1/auth/refresh
    * Rafraîchit le token d'accès
+   * 
+   * Security: Returns new tokens in httpOnly cookies
    */
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const { refreshToken } = req.body;
+      // Get refresh token from cookie or body
+      const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
 
       if (!refreshToken) {
         throw new AppError('Refresh token is required', 400, 'MISSING_REFRESH_TOKEN');
@@ -126,9 +186,19 @@ class AuthController {
 
       const result = await authService.refreshToken(refreshToken);
 
+      // Set new httpOnly cookies
+      const cookieOptions = {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 15 * 60 * 1000, // 15 minutes for access token
+      };
+
+      res.cookie('access_token', result.accessToken, cookieOptions);
+
       res.status(200).json({
         success: true,
-        ...result,
+        message: 'Token refreshed successfully'
       });
     } catch (error) {
       logger.error('Error refreshing token:', error);

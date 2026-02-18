@@ -1,16 +1,97 @@
 import { Request, Response, NextFunction } from 'express';
 import { jwtService, JwtPayload } from '@/modules/auth/jwt.service';
+import { tokenBlacklistService } from '@/modules/auth/token-blacklist.service';
 import { AppError } from '@/shared/utils/errors';
 import { Logger } from '../../shared/logger';
 import { prisma } from '@/shared/database/prisma.client';
+import { redisClient } from '../../config/redis';
 
-// Étendre l'interface Request pour inclure user
+// Constants for user caching
+const USER_CACHE_TTL = 300; // 5 minutes
+const USER_CACHE_PREFIX = 'user:cache:';
+
+// Extend Request interface for user
 declare global {
     // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace Express {
         interface Request {
-            user?: JwtPayload;
+            user?: JwtPayload & { cachedAt?: number };
         }
+    }
+}
+
+/**
+ * Get user from Redis cache or database
+ */
+async function getCachedUser(userId: string): Promise<{
+    id: string;
+    email: string;
+    organizationId: string | null;
+    role: string;
+    isActive: boolean;
+} | null> {
+    if (!redisClient) {
+        // Fallback to database if Redis not available
+        return prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                organizationId: true,
+                role: true,
+                isActive: true
+            }
+        });
+    }
+
+    const cacheKey = `${USER_CACHE_PREFIX}${userId}`;
+    
+    try {
+        // Try to get from cache
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+            Logger.debug('User cache hit', { userId });
+            return JSON.parse(cached);
+        }
+    } catch (error) {
+        Logger.warn('Redis cache read error, falling back to DB', { userId, error });
+    }
+
+    // Cache miss - fetch from database
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            id: true,
+            email: true,
+            organizationId: true,
+            role: true,
+            isActive: true
+        }
+    });
+
+    if (user) {
+        try {
+            // Cache the user
+            await redisClient.setEx(cacheKey, USER_CACHE_TTL, JSON.stringify(user));
+        } catch (error) {
+            Logger.warn('Redis cache write error', { userId, error });
+        }
+    }
+
+    return user;
+}
+
+/**
+ * Invalidate user cache (call when user data changes)
+ */
+export async function invalidateUserCache(userId: string): Promise<void> {
+    if (!redisClient) return;
+    
+    const cacheKey = `${USER_CACHE_PREFIX}${userId}`;
+    try {
+        await redisClient.del(cacheKey);
+    } catch (error) {
+        Logger.warn('Failed to invalidate user cache', { userId, error });
     }
 }
 
@@ -18,6 +99,7 @@ declare global {
  * 🔐 Middleware d'authentification
  * 
  * Vérifie le token JWT et attache les informations utilisateur à req.user
+ * Uses Redis caching to reduce database load
  */
 export const requireAuth = async (
     req: Request,
@@ -25,29 +107,44 @@ export const requireAuth = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        // Récupérer le token depuis le header Authorization
-        const authHeader = req.headers.authorization;
+        // Récupérer le token depuis le cookie ou le header Authorization
+        let token: string | undefined;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // Priorité 1: Cookie
+        if (req.cookies?.access_token) {
+            token = req.cookies.access_token;
+        }
+        // Priorité 2: Header Authorization (pour compatibilité)
+        else if (req.headers.authorization?.startsWith('Bearer ')) {
+            token = req.headers.authorization.substring(7);
+        }
+
+        if (!token) {
             throw new AppError('No token provided', 401, 'NO_TOKEN');
         }
 
-        const token = authHeader.substring(7); // Enlever "Bearer "
+        // Vérifier si le token est blacklisté
+        const isBlacklisted = await tokenBlacklistService.isBlacklisted(token);
+        if (isBlacklisted) {
+            throw new AppError('Token has been revoked', 401, 'TOKEN_REVOKED');
+        }
 
         // Vérifier le token
         const payload = jwtService.verifyToken(token);
 
-        // Récupérer l'utilisateur actuel depuis la base de données pour avoir les données à jour
-        const user = await prisma.user.findUnique({
-            where: { id: payload.userId },
-            include: { organization: true }
-        });
+        // Get user from cache (or database fallback)
+        const user = await getCachedUser(payload.userId);
 
         if (!user) {
             throw new AppError('User not found', 401, 'USER_NOT_FOUND');
         }
 
-        // Attacher les informations utilisateur à la requête (avec les données à jour)
+        // Check if user is active
+        if (!user.isActive) {
+            throw new AppError('Account is disabled', 403, 'ACCOUNT_DISABLED');
+        }
+
+        // Attacher les informations utilisateur à la requête
         req.user = {
             userId: user.id,
             email: user.email,

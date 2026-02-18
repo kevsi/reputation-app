@@ -2,10 +2,9 @@ import { useEffect, useState, useCallback } from "react";
 import { SourceCard } from "@/components/sources/SourceCard";
 import SourceForm from "@/components/sources/SourceForm";
 import { ConfirmModal } from "@/components/shared/ConfirmModal";
-import { sourcesService } from "@/services/sources.service";
+import { sourcesService, Source } from "@/services/sources.service";
 import { useBrand } from "@/contexts/BrandContext";
 import { useBrandListener } from "@/hooks/useBrandListener";
-import type { Source } from "@/types/models";
 import { isApiError } from "@/types/http";
 import { ApiErrorHandler } from "@/lib/api-error-handler";
 import { Plus, Loader2, AlertCircle, Search, Filter } from "lucide-react";
@@ -35,6 +34,7 @@ export default function SourcesPage() {
   // Modal State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isScraping, setIsScraping] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; id: string | null }>({
     isOpen: false,
     id: null
@@ -55,7 +55,7 @@ export default function SourcesPage() {
         setError(ApiErrorHandler.getUserMessage(response.error));
         setSources([]);
       } else {
-        setSources(response.data || []);
+        setSources((response.data || []) as Source[]);
       }
     } catch (err) {
       setError("Erreur réseau");
@@ -76,6 +76,8 @@ export default function SourcesPage() {
   };
 
   const handleDeleteSource = async (sourceId: string) => {
+    if (isDeleting) return; // Prevent double-click
+    setIsDeleting(true);
     try {
       const response = await sourcesService.delete(sourceId);
       if (isApiError(response)) {
@@ -86,6 +88,8 @@ export default function SourcesPage() {
       }
     } catch (error) {
       toast.error('Échec de la suppression');
+    } finally {
+      setIsDeleting(false);
     }
   };
 

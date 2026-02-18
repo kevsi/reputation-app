@@ -4,6 +4,7 @@ export interface AuthResponse {
     success: boolean;
     accessToken: string;
     refreshToken: string;
+    familyId?: string; // Pour le suivi des tokens sur plusieurs appareils
     user: Omit<User, 'password'> & { organization?: any };
 }
 

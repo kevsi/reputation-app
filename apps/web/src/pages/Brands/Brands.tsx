@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { brandsService } from '@/services/brands.service';
 import { useBrand } from '@/contexts/BrandContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { isApiError } from '@/types/http';
 import { ApiErrorHandler } from '@/lib/api-error-handler';
 import { Brand } from '@/types/models';
@@ -15,6 +16,7 @@ import { toast } from 'sonner';
 
 export default function BrandsPage() {
   const { brands: contextBrands, refreshBrands } = useBrand();
+  const { user } = useAuth();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +32,7 @@ export default function BrandsPage() {
   });
 
   useEffect(() => {
-    setBrands(contextBrands as any);
+    setBrands(contextBrands || []);
     setIsLoading(false);
   }, [contextBrands]);
 
@@ -39,11 +41,14 @@ export default function BrandsPage() {
     try {
       let res;
       if (formModal.data) {
-        // res = await brandsService.update(formModal.data.id, formData);
-        toast.info("Mise à jour activée via API");
-        res = { success: true };
+        res = await brandsService.update(formModal.data.id, formData);
       } else {
-        res = await brandsService.create(formData);
+        // Add organizationId for new brands
+        const brandData = {
+          ...formData,
+          organizationId: user?.organizationId,
+        };
+        res = await brandsService.create(brandData);
       }
 
       if (!isApiError(res)) {
@@ -72,8 +77,8 @@ export default function BrandsPage() {
     }
   };
 
-  const filteredBrands = brands.filter(brand =>
-    brand.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredBrands = (brands || []).filter(brand =>
+    brand.name?.toLowerCase()?.includes(searchQuery?.toLowerCase() || '') ?? false
   );
 
   return (

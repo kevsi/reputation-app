@@ -46,6 +46,8 @@ export interface DashboardStats {
   sentimentDistribution: { positive: number; negative: number; neutral: number };
   topKeywords: Array<{ keyword: string; count: number }>;
   reputationTrend: number;
+  mentionTrend?: number;
+  sentimentTrend?: number;
 }
 
 export interface DashboardAlert {

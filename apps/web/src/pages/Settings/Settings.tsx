@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usersService } from "@/services/users.service";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { ApiResponse } from "@/types/api";
 import { isApiError } from "@/types/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +19,7 @@ interface OrgData {
 }
 
 export default function SettingsPage() {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orgData, setOrgData] = useState<OrgData | null>(null);
@@ -40,6 +39,24 @@ export default function SettingsPage() {
     negative: true
   });
 
+  const handleNotificationChange = async (key: string, value: boolean) => {
+    setNotifications(prev => ({ ...prev, [key]: value }));
+    try {
+      const res = await apiClient.put('/notifications/preferences', { [key]: value });
+      if (!isApiError(res)) {
+        toast.success('Préférence mise à jour');
+      } else {
+        toast.error('Erreur de mise à jour');
+        // Rollback on error
+        setNotifications(prev => ({ ...prev, [key]: !value }));
+      }
+    } catch (error) {
+      toast.error('Erreur réseau');
+      // Rollback on error
+      setNotifications(prev => ({ ...prev, [key]: !value }));
+    }
+  };
+
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -53,9 +70,9 @@ export default function SettingsPage() {
       if (user.organizationId) {
         // Fetch org data
         const res = await apiClient.get<OrgData>(`/organizations/${user.organizationId}`);
-        if (!isApiError(res)) {
+        if (!isApiError(res) && res.data) {
           setOrgData(res.data);
-          setFormData(prev => ({ ...prev, organizationName: res.data.name }));
+          setFormData(prev => ({ ...prev, organizationName: res.data!.name }));
         }
       }
     } catch (err) {
@@ -77,7 +94,8 @@ export default function SettingsPage() {
       });
 
       if (!isApiError(response)) {
-        await refreshUser();
+        // Trigger a re-fetch of user data
+        window.location.reload();
         toast.success("Profil mis à jour");
       } else {
         toast.error("Erreur de mise à jour");
@@ -161,21 +179,30 @@ export default function SettingsPage() {
                     <div className="font-semibold">Nouvelles Mentions</div>
                     <div className="text-xs text-muted-foreground">Recevoir une alerte pour chaque nouvelle mention détectée.</div>
                   </div>
-                  <Switch checked={notifications.mentions} onCheckedChange={(v) => setNotifications({ ...notifications, mentions: v })} />
+                  <Switch 
+                    checked={notifications.mentions} 
+                    onCheckedChange={(v) => handleNotificationChange('mentions', v)} 
+                  />
                 </div>
                 <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
                   <div>
                     <div className="font-semibold text-red-600">Alertes Critiques</div>
                     <div className="text-xs text-muted-foreground">Notifications immédiates pour les situations de crise.</div>
                   </div>
-                  <Switch checked={notifications.alerts} onCheckedChange={(v) => setNotifications({ ...notifications, alerts: v })} />
+                  <Switch 
+                    checked={notifications.alerts} 
+                    onCheckedChange={(v) => handleNotificationChange('alerts', v)} 
+                  />
                 </div>
                 <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
                   <div>
                     <div className="font-semibold text-amber-600">Sentiments Négatifs</div>
                     <div className="text-xs text-muted-foreground">Surveillance spécifique des mentions négatives.</div>
                   </div>
-                  <Switch checked={notifications.negative} onCheckedChange={(v) => setNotifications({ ...notifications, negative: v })} />
+                  <Switch 
+                    checked={notifications.negative} 
+                    onCheckedChange={(v) => handleNotificationChange('negative', v)} 
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -200,13 +227,16 @@ export default function SettingsPage() {
                   <span className="text-muted-foreground">Prochain paiement</span>
                   <span className="font-medium">{orgData?.renewalDate || 'N/A'}</span>
                 </div>
-                <Button className="w-full rounded-full" variant="outline">Gérer la facturation</Button>
+                <Button className="w-full rounded-full" variant="outline" onClick={() => toast.info('Gestion de facturation bientôt disponible')}>Gérer la facturation</Button>
               </CardContent>
             </Card>
 
             <div className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground px-2">Assistance</h3>
-              <a href="#" className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/30 transition-all group">
+              <button 
+                className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/30 transition-all group w-full text-left"
+                onClick={() => toast.info('Documentation bientôt disponible')}
+              >
                 <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
                   <Book className="w-5 h-5 text-primary" />
                 </div>
@@ -214,8 +244,11 @@ export default function SettingsPage() {
                   <div className="font-semibold text-sm">Base de connaissance</div>
                   <div className="text-xs text-muted-foreground">Guides et tutoriels</div>
                 </div>
-              </a>
-              <a href="#" className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/30 transition-all group">
+              </button>
+              <button 
+                className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/30 transition-all group w-full text-left"
+                onClick={() => toast.info('Support disponible par email')}
+              >
                 <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
                   <MessageCircle className="w-5 h-5 text-primary" />
                 </div>
@@ -223,7 +256,7 @@ export default function SettingsPage() {
                   <div className="font-semibold text-sm">Contacter le support</div>
                   <div className="text-xs text-muted-foreground">Réponse sous 24h</div>
                 </div>
-              </a>
+              </button>
             </div>
           </div>
         </div>
