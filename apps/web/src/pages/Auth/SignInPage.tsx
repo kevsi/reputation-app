@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -6,32 +6,47 @@ import { motion } from 'framer-motion';
 
 /**
  * 🔑 SignInPage
- * 
+ *
  * Page de connexion optimisée.
  * Affiche un formulaire moderne avec validation et feedback.
+ *
+ * Fix appliqués :
+ * - navigate() déplacé dans un useEffect sur `user` pour éviter
+ *   le timing issue avec ProtectedRoute
+ * - catch typé en unknown (plus de any)
+ * - bouton Google avec type="button" pour ne pas soumettre le form
+ * - typo "parmis" → "parmi"
+ * - rememberMe documenté (à brancher quand login() le supportera)
  */
 export default function SignInPage() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle, user } = useAuth();
   const navigate = useNavigate();
+
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
+
+  /**
+   * ✅ Fix principal : on navigue APRÈS que React ait propagé setUser(userData)
+   * dans l'AuthContext. Sans ça, ProtectedRoute voit encore isAuthenticated=false
+   * au moment du navigate() et redirige immédiatement vers /signin.
+   */
+  useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true }); // replace: true empêche le retour arrière vers /signin
+    }
+  }, [user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     if (error) setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formData.email || !formData.password) {
       setError('Veuillez remplir tous les champs');
       return;
@@ -41,11 +56,26 @@ export default function SignInPage() {
     setError(null);
 
     try {
+      // TODO: passer rememberMe quand login() le supportera
       await login(formData.email, formData.password);
-      navigate('/');
-    } catch (err: any) {
-      const errorMsg = err?.message || err?.error?.message || 'Identifiants invalides';
-      setError(errorMsg);
+      // ✅ Pas de navigate() ici — le useEffect ci-dessus s'en charge
+    } catch (err: unknown) {
+      // ✅ Plus de any — on type-guard proprement
+      const e = err as { message?: string };
+      setError(e?.message || 'Identifiants invalides');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogle();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      setError(e?.message || 'Erreur lors de la connexion Google');
     } finally {
       setIsLoading(false);
     }
@@ -56,7 +86,7 @@ export default function SignInPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
-          Bon retour parmis nous
+          Bon retour parmi nous {/* ✅ typo corrigée */}
         </h1>
         <p className="text-slate-500 dark:text-slate-400">
           Connectez-vous pour accéder à votre espace Sentinelle.
@@ -69,7 +99,7 @@ export default function SignInPage() {
           animate={{ opacity: 1, x: 0 }}
           className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-2xl flex items-center gap-3"
         >
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
           {error}
         </motion.div>
       )}
@@ -89,6 +119,7 @@ export default function SignInPage() {
               type="email"
               name="email"
               required
+              autoComplete="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="jean@entreprise.com"
@@ -115,9 +146,10 @@ export default function SignInPage() {
               <Lock className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             </div>
             <input
-              type={showPassword ? "text" : "password"}
+              type={showPassword ? 'text' : 'password'}
               name="password"
               required
+              autoComplete="current-password"
               value={formData.password}
               onChange={handleChange}
               placeholder="••••••••"
@@ -126,6 +158,7 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
               className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -146,7 +179,11 @@ export default function SignInPage() {
               <div className="w-5 h-5 border-2 border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-slate-900 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-all" />
               <svg
                 className="absolute top-1 left-1 w-3 h-3 text-white scale-0 peer-checked:scale-100 transition-transform duration-200"
-                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="4"
+                aria-hidden="true"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
@@ -180,7 +217,7 @@ export default function SignInPage() {
       {/* Lien Inscription */}
       <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-900 text-center">
         <p className="text-slate-500 dark:text-slate-400 text-sm">
-          Nouveau sur Sentinelle ? {' '}
+          Nouveau sur Sentinelle ?{' '}
           <Link
             to="/signup"
             className="text-indigo-600 dark:text-indigo-400 font-bold hover:text-indigo-700 transition-colors ml-1"
@@ -193,16 +230,20 @@ export default function SignInPage() {
       {/* Social Login Divider */}
       <div className="relative my-10">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-100 dark:border-slate-900"></div>
+          <div className="w-full border-t border-slate-100 dark:border-slate-900" />
         </div>
         <div className="relative flex justify-center text-xs uppercase tracking-widest font-semibold">
           <span className="bg-slate-50 dark:bg-slate-950 px-4 text-slate-400">Ou continuer avec</span>
         </div>
       </div>
 
-      {/* Google Login */}
-      <button className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98]">
-        <svg className="w-5 h-5" viewBox="0 0 24 24">
+      {/* ✅ type="button" pour ne pas déclencher le submit du form */}
+      <button
+        type="button"
+        onClick={handleGoogleLogin}
+        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+      >
+        <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />

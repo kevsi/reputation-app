@@ -16,6 +16,11 @@ export default defineConfig(({ mode }) => {
         allow: ["./src", "./shared", ".."],
         deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
       },
+      // Headers to fix Firebase OAuth popup issues
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
     },
     build: {
       outDir: "dist/spa",

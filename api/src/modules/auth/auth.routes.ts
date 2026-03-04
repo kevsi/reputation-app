@@ -34,9 +34,24 @@ const verifyEmailSchema = z.object({
   token: z.string().min(1, 'Token is required'),
 });
 
+const googleAuthSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
+});
+
 // ============================================
 // ROUTES D'AUTHENTIFICATION DE BASE
 // ============================================
+
+/**
+ * POST /api/v1/auth/google
+ * Connexion/inscription via Google OAuth
+ */
+router.post(
+  '/google',
+  authRateLimiter,
+  validate(googleAuthSchema),
+  authController.google.bind(authController)
+);
 
 /**
  * POST /api/v1/auth/register

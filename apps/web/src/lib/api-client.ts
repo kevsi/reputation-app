@@ -7,8 +7,20 @@
 
 import { ApiResponse, isApiError, ApiErrorCode, TypedApiError } from '@/types/http';
 import { DEFAULT_RETRY_CONFIG, RetryConfig, ApiErrorHandler, logger } from './api-error-handler';
+import type { Brand, Mention, Keyword, Source, User } from '@/types/models';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+
+/**
+ * Stratégie d'authentification
+ * - 'cookie': utilise les cookies SameSite (recommandé pour cross-origin)
+ * - 'bearer': utilise le header Authorization (pour same-origin)
+ */
+type AuthStrategy = 'cookie' | 'bearer';
+const AUTH_STRATEGY: AuthStrategy = 'bearer';
+
+// For local development, include credentials to allow cookies/auth headers
+const INCLUDE_CREDENTIALS = true;
 
 class ApiClient {
     private baseUrl: string;
@@ -58,15 +70,42 @@ class ApiClient {
     }
 
     /**
+     * Génère une clé de cache qui inclut les query params
+     */
+    private buildCacheKey(method: string, endpoint: string, params?: Record<string, unknown>): string {
+        let cacheKey = `${method || 'GET'}:${endpoint}`;
+        
+        if (params && Object.keys(params).length > 0) {
+            const sortedParams = Object.entries(params)
+                .filter(([, v]) => v !== undefined)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([k, v]) => `${k}=${String(v)}`)
+                .join('&');
+            cacheKey += `?${sortedParams}`;
+        }
+        
+        return cacheKey;
+    }
+
+    /**
      * Requête HTTP générique avec retry logic et timeout
      */
     private async request<T>(
         endpoint: string,
         options: RequestInit = {},
-        attemptNumber = 0
+        attemptNumber = 0,
+        params?: Record<string, unknown>
     ): Promise<ApiResponse<T>> {
-        const url = `${this.baseUrl}${endpoint}`;
-        const cacheKey = `${options.method || 'GET'}:${endpoint}`;
+        // Construire l'URL avec les params
+        let url = `${this.baseUrl}${endpoint}`;
+        if (params && Object.keys(params).length > 0) {
+            const queryString = new URLSearchParams(
+                Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+            ).toString();
+            url += `?${queryString}`;
+        }
+
+        const cacheKey = this.buildCacheKey(options.method || 'GET', endpoint, params);
 
         // Pour les GET, vérifier le cache d'abord
         if (!options.method || options.method === 'GET') {
@@ -82,9 +121,23 @@ class ApiClient {
             ...(options.headers as Record<string, string> || {}),
         };
 
-        // Ajouter le token si disponible
-        if (this.token) {
+        // Ajouter le token selon la stratégie d'authentification
+        if (AUTH_STRATEGY === 'bearer' && this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
+        }
+
+        // Credentials策略：根据认证方式决定
+        // - bearer: 不需要 cookies
+        // - cookie: 需要 credentials: 'include'
+        const fetchOptions: RequestInit = {
+            ...options,
+            headers,
+            signal: undefined, // 添加signal但稍后设置
+        };
+
+        // Only include credentials in cookie mode
+        if (AUTH_STRATEGY === 'cookie' || INCLUDE_CREDENTIALS) {
+            fetchOptions.credentials = 'include';
         }
 
         try {
@@ -97,12 +150,9 @@ class ApiClient {
                 this.retryConfig.timeoutMs
             );
 
-            const response = await fetch(url, {
-                ...options,
-                headers,
-                signal: controller.signal,
-                credentials: 'include', // Required for cookies to be sent with cross-origin requests
-            });
+            fetchOptions.signal = controller.signal;
+
+            const response = await fetch(url, fetchOptions);
 
             clearTimeout(timeoutId);
 
@@ -124,10 +174,11 @@ class ApiClient {
             // Vérifier si la réponse est un succès
             if (!response.ok) {
                 // Gestion du Refresh Token si 401
+                // TODO: Implémenter le refresh token quand le backend le support
                 if (response.status === 401 && this.token) {
-                    // Appel à une fonction de refresh (placeholder)
-                    // const refreshed = await this.refreshToken();
-                    // if (refreshed) return this.request<T>(endpoint, options, attemptNumber);
+                    logger.warn('Received 401, but refresh token is not implemented');
+                    // Pour l'instant, on déconnecte l'utilisateur
+                    this.setToken(null);
                 }
 
                 const shouldRetry = ApiErrorHandler.isRetryable(response.status) &&
@@ -157,7 +208,7 @@ class ApiClient {
 
                     logger.warn(`Request failed with ${response.status}, retrying in ${delay}ms (attempt ${attemptNumber + 1}/${this.retryConfig.maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    return this.request<T>(endpoint, options, attemptNumber + 1);
+                    return this.request<T>(endpoint, options, attemptNumber + 1, params);
                 }
 
                 // Erreur finale
@@ -232,7 +283,7 @@ class ApiClient {
     async login(email: string, password: string): Promise<ApiResponse<{
         accessToken: string;
         refreshToken?: string;
-        user: unknown;
+        user: User;
     }>> {
         return this.request('/auth/login', {
             method: 'POST',
@@ -248,7 +299,7 @@ class ApiClient {
     }): Promise<ApiResponse<{
         accessToken: string;
         refreshToken?: string;
-        user: unknown;
+        user: User;
     }>> {
         return this.request('/auth/register', {
             method: 'POST',
@@ -256,8 +307,8 @@ class ApiClient {
         });
     }
 
-    async me(): Promise<ApiResponse<unknown>> {
-        return this.request('/auth/me');
+    async me(): Promise<ApiResponse<User>> {
+        return this.request<User>('/auth/me');
     }
 
     async logout(): Promise<void> {
@@ -265,20 +316,43 @@ class ApiClient {
         this.clearCache(); // Clear all cached data on logout
     }
 
+    /**
+     * Login with Google - sends the Google ID token to the backend
+     */
+    async loginWithGoogle(idToken: string): Promise<ApiResponse<{
+        accessToken: string;
+        refreshToken?: string;
+        user: User;
+    }>> {
+        return this.request('/auth/google', {
+            method: 'POST',
+            body: JSON.stringify({ idToken }),
+        });
+    }
+
     // ========================================
     // BRANDS
     // ========================================
 
-    async getBrands(): Promise<ApiResponse<unknown[]>> {
-        return this.request<unknown[]>('/brands');
+    async getBrands(): Promise<ApiResponse<Brand[]>> {
+        return this.request<Brand[]>('/brands');
     }
 
-    async createBrand(data: unknown): Promise<ApiResponse<unknown>> {
-        const result = await this.request<unknown>('/brands', {
+    async createBrand(data: Omit<Brand, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Brand>> {
+        const result = await this.request<Brand>('/brands', {
             method: 'POST',
             body: JSON.stringify(data),
         });
         this.clearCache('brands'); // Invalidate brands cache
+        return result;
+    }
+
+    async updateBrand(id: string, data: Partial<Brand>): Promise<ApiResponse<Brand>> {
+        const result = await this.request<Brand>(`/brands/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+        this.clearCache('brands');
         return result;
     }
 
@@ -294,23 +368,20 @@ class ApiClient {
     // MENTIONS
     // ========================================
 
-    async getMentions(params?: Record<string, unknown>): Promise<ApiResponse<unknown[]>> {
-        const query = params ? '?' + new URLSearchParams(
-            Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        ).toString() : '';
-        return this.request<unknown[]>(`/mentions${query}`);
+    async getMentions(params?: Record<string, unknown>): Promise<ApiResponse<Mention[]>> {
+        return this.request<Mention[]>('/mentions', {}, 0, params);
     }
 
     // ========================================
     // KEYWORDS
     // ========================================
 
-    async getKeywords(brandId: string): Promise<ApiResponse<unknown[]>> {
-        return this.request<unknown[]>(`/keywords?brandId=${encodeURIComponent(brandId)}`);
+    async getKeywords(brandId: string): Promise<ApiResponse<Keyword[]>> {
+        return this.request<Keyword[]>(`/keywords?brandId=${encodeURIComponent(brandId)}`);
     }
 
-    async createKeyword(data: unknown): Promise<ApiResponse<unknown>> {
-        return this.request<unknown>('/keywords', {
+    async createKeyword(data: { brandId: string; keyword: string }): Promise<ApiResponse<Keyword>> {
+        return this.request<Keyword>('/keywords', {
             method: 'POST',
             body: JSON.stringify(data),
         });
@@ -327,19 +398,19 @@ class ApiClient {
     // SOURCES
     // ========================================
 
-    async getSources(): Promise<ApiResponse<unknown[]>> {
-        return this.request<unknown[]>('/sources');
+    async getSources(): Promise<ApiResponse<Source[]>> {
+        return this.request<Source[]>('/sources');
     }
 
-    async createSource(data: unknown): Promise<ApiResponse<unknown>> {
-        return this.request<unknown>('/sources', {
+    async createSource(data: Omit<Source, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Source>> {
+        return this.request<Source>('/sources', {
             method: 'POST',
             body: JSON.stringify(data),
         });
     }
 
-    async scrapeSourceNow(sourceId: string): Promise<ApiResponse<unknown>> {
-        return this.request<unknown>(`/sources/${encodeURIComponent(sourceId)}/scrape-now`, {
+    async scrapeSourceNow(sourceId: string): Promise<ApiResponse<{ success: boolean }>> {
+        return this.request<{ success: boolean }>(`/sources/${encodeURIComponent(sourceId)}/scrape-now`, {
             method: 'POST'
         });
     }
@@ -349,10 +420,7 @@ class ApiClient {
     // ========================================
 
     async getAnalyticsSummary(params?: Record<string, unknown>): Promise<ApiResponse<unknown>> {
-        const query = params ? ('?' + new URLSearchParams(
-            Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        ).toString()) : '';
-        return this.request<unknown>(`/analytics/summary${query}`);
+        return this.request<unknown>('/analytics/summary', {}, 0, params);
     }
 
     // ========================================
@@ -360,10 +428,7 @@ class ApiClient {
     // ========================================
 
     async getAlerts(params?: Record<string, unknown>): Promise<ApiResponse<unknown[]>> {
-        const query = params ? '?' + new URLSearchParams(
-            Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        ).toString() : '';
-        return this.request<unknown[]>(`/alerts${query}`);
+        return this.request<unknown[]>('/alerts', {}, 0, params);
     }
 
     // ========================================
@@ -371,21 +436,18 @@ class ApiClient {
     // ========================================
 
     async getReports(params?: Record<string, unknown>): Promise<ApiResponse<unknown[]>> {
-        const query = params ? '?' + new URLSearchParams(
-            Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        ).toString() : '';
-        return this.request<unknown[]>(`/reports${query}`);
+        return this.request<unknown[]>('/reports', {}, 0, params);
     }
 
     // ========================================
     // GENERIC HTTP METHODS
     // ========================================
 
+    /**
+     * Generic GET request with params support
+     */
     async get<T>(endpoint: string, params?: Record<string, unknown>): Promise<ApiResponse<T>> {
-        const query = params ? '?' + new URLSearchParams(
-            Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        ).toString() : '';
-        return this.request<T>(`${endpoint}${query}`);
+        return this.request<T>(endpoint, {}, 0, params);
     }
 
     /**
@@ -437,7 +499,8 @@ class ApiClient {
     }
 
     /**
-     * Public access to request
+     * Accès public à request pour les cas d'usage avancés
+     * @deprecated Préférez utiliser les méthodes génériques get/post/put/patch/delete
      */
     async callApi<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
         return this.request<T>(endpoint, options);

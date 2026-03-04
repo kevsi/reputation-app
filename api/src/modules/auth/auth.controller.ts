@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service';
+import { googleAuthService } from './google-auth.service';
 import { logger } from '@/infrastructure/logger';
 import { AppError } from '@/shared/utils/errors';
 import { prisma } from '@/shared/database/prisma.client';
@@ -303,6 +304,50 @@ class AuthController {
       });
     } catch (error) {
       logger.error('Error verifying email:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/v1/auth/google
+   * Connexion/inscription via Google OAuth
+   */
+  async google(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { idToken } = req.body;
+
+      if (!idToken) {
+        throw new AppError('Google ID token is required', 400, 'MISSING_TOKEN');
+      }
+
+      const result = await googleAuthService.authenticate(idToken);
+      const { accessToken, refreshToken, ...userData } = result;
+
+      // Set httpOnly cookies for tokens
+      const cookieOptions = {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 15 * 60 * 1000,
+      };
+
+      const refreshCookieOptions = {
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      };
+
+      res.cookie('access_token', accessToken, cookieOptions);
+      res.cookie('refresh_token', refreshToken, refreshCookieOptions);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          success: true,
+          user: userData,
+        },
+      });
+    } catch (error) {
+      logger.error('Google auth error:', error);
       next(error);
     }
   }

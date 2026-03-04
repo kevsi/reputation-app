@@ -31,9 +31,7 @@ COPY turbo.json* ./
 COPY api/package*.json ./api/
 COPY database/package*.json ./database/
 COPY shared/package*.json ./shared/
-COPY apps/admin/package*.json ./apps/admin/
-COPY apps/web/package*.json ./apps/web/
-COPY apps/landing/package*.json ./apps/landing/
+
 
 RUN npm install
 
@@ -49,7 +47,6 @@ COPY --from=deps /app /app
 COPY api/ ./api/
 COPY database/ ./database/
 COPY shared/ ./shared/
-COPY apps/ ./apps/
 COPY scrapers/ ./scrapers/
 COPY package*.json ./
 COPY turbo.json* ./
@@ -81,9 +78,7 @@ COPY turbo.json* ./
 COPY api/package*.json ./api/
 COPY database/package*.json ./database/
 COPY shared/package*.json ./shared/
-COPY apps/admin/package*.json ./apps/admin/
-COPY apps/web/package*.json ./apps/web/
-COPY apps/landing/package*.json ./apps/landing/
+
 
 # ---- Déps PROD only
 RUN npm install --omit=dev \
